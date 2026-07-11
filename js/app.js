@@ -7,7 +7,7 @@ let state = {
   currentPlantId: null,    // planta abierta en detalle
   selectedCatalogId: null, // especie elegida en el formulario de planta
   plantOrigen: "semilla",
-  bedTipo: "raised",
+  bedTipo: "cama",
   targetBedForNewPlant: null // si se agrega desde el detalle de un bancal
 };
 
@@ -74,7 +74,7 @@ function openBedForm(bedId) {
     document.getElementById("bed-form-title").textContent = "Nuevo bancal";
     document.getElementById("bed-nombre").value = "";
     document.getElementById("bed-notas").value = "";
-    state.bedTipo = "raised";
+    state.bedTipo = "cama";
     deleteBtn.style.display = "none";
   }
   document.querySelectorAll("#bed-tipo-control button").forEach(b => b.classList.toggle("active", b.dataset.val === state.bedTipo));
@@ -193,9 +193,11 @@ function openPlantForm(plantId) {
     document.getElementById("fecha-brote").value = plant.fechas.brote || "";
     document.getElementById("fecha-flor").value = plant.fechas.primeraFlor || "";
     document.getElementById("fecha-fruto").value = plant.fechas.primerFruto || "";
+    document.getElementById("fecha-cosecha").value = plant.fechas.cosecha || "";
     document.getElementById("fecha-trasplante-inicial").value = plant.fechas.trasplante || "";
     document.getElementById("fecha-flor-2").value = plant.fechas.primeraFlor || "";
     document.getElementById("fecha-fruto-2").value = plant.fechas.primerFruto || "";
+    document.getElementById("fecha-cosecha-2").value = plant.fechas.cosecha || "";
     deleteBtn.style.display = "block";
   } else {
     document.getElementById("plant-form-title").textContent = "Nueva planta";
@@ -205,7 +207,7 @@ function openPlantForm(plantId) {
     state.selectedCatalogId = null;
     state.plantOrigen = "semilla";
     populateBedSelect(bedSelect, { selected: state.targetBedForNewPlant });
-    ["fecha-siembra", "fecha-brote", "fecha-flor", "fecha-fruto", "fecha-trasplante-inicial", "fecha-flor-2", "fecha-fruto-2"]
+    ["fecha-siembra", "fecha-brote", "fecha-flor", "fecha-fruto", "fecha-cosecha", "fecha-trasplante-inicial", "fecha-flor-2", "fecha-fruto-2", "fecha-cosecha-2"]
       .forEach(id => document.getElementById(id).value = "");
     deleteBtn.style.display = "none";
   }
@@ -236,13 +238,15 @@ document.getElementById("btn-save-plant").addEventListener("click", () => {
       siembra: document.getElementById("fecha-siembra").value || null,
       brote: document.getElementById("fecha-brote").value || null,
       primeraFlor: document.getElementById("fecha-flor").value || null,
-      primerFruto: document.getElementById("fecha-fruto").value || null
+      primerFruto: document.getElementById("fecha-fruto").value || null,
+      cosecha: document.getElementById("fecha-cosecha").value || null
     };
   } else {
     fechas = {
       trasplante: document.getElementById("fecha-trasplante-inicial").value || null,
       primeraFlor: document.getElementById("fecha-flor-2").value || null,
-      primerFruto: document.getElementById("fecha-fruto-2").value || null
+      primerFruto: document.getElementById("fecha-fruto-2").value || null,
+      cosecha: document.getElementById("fecha-cosecha-2").value || null
     };
   }
 
@@ -288,6 +292,14 @@ document.getElementById("plant-filters").addEventListener("click", (e) => {
   plantFilterCategory = chip.dataset.cat;
   renderPlants();
 });
+document.getElementById("plant-status-control").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#plant-status-control button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  plantShowFinalizadas = btn.dataset.val === "finalizadas";
+  renderPlants();
+});
 
 function openPlantDetail(plantId) {
   state.currentPlantId = plantId;
@@ -303,6 +315,19 @@ document.getElementById("plant-detail-body").addEventListener("click", (e) => {
   if (e.target.id === "btn-open-move-plant") {
     closeAllSheets();
     openMoveSheet(state.currentPlantId);
+  }
+  if (e.target.id === "btn-finish-plant") {
+    if (!confirm("¿Marcar el ciclo de esta planta como finalizado? Va a pasar a Finalizadas, con su historial guardado.")) return;
+    Store.archivePlant(state.currentPlantId);
+    closeAllSheets();
+    renderBeds(); renderPlants();
+    toast("Ciclo finalizado");
+  }
+  if (e.target.id === "btn-reactivate-plant") {
+    Store.updatePlant(state.currentPlantId, { activa: true });
+    renderPlantDetail(state.currentPlantId);
+    renderBeds(); renderPlants();
+    toast("Planta reactivada");
   }
 });
 
@@ -384,8 +409,27 @@ document.getElementById("import-file-input").addEventListener("change", (e) => {
   e.target.value = "";
 });
 
+document.getElementById("hoy-upcoming").addEventListener("click", (e) => {
+  const card = e.target.closest(".plant-card");
+  if (!card) return;
+  openPlantDetail(card.dataset.plantId);
+});
+
+// ---------- Migración de datos ----------
+function migrateOldBedTypes() {
+  const beds = Store.getBeds();
+  let changed = false;
+  const migrated = beds.map(b => {
+    if (b.tipo === "raised") { changed = true; return { ...b, tipo: "cama" }; }
+    if (b.tipo === "ground") { changed = true; return { ...b, tipo: "semillero" }; }
+    return b;
+  });
+  if (changed) Store.saveBeds(migrated);
+}
+
 // ---------- Inicio ----------
 function init() {
+  migrateOldBedTypes();
   loadSettingsForm();
   switchView("hoy");
   Backup.maybeAutoBackup();

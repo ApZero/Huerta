@@ -44,14 +44,16 @@ function stageTrackHTML(plant) {
     stages = [
       { key: "trasplante", label: "Plantín", icon: "🌱", date: plant.fechas.trasplante },
       { key: "primeraFlor", label: "Flor", icon: "🌸", date: plant.fechas.primeraFlor },
-      { key: "primerFruto", label: "Fruto", icon: "🍅", date: plant.fechas.primerFruto }
+      { key: "primerFruto", label: "Fruto", icon: "🍅", date: plant.fechas.primerFruto },
+      { key: "cosecha", label: "Cosecha", icon: "🧺", date: plant.fechas.cosecha }
     ];
   } else {
     stages = [
       { key: "siembra", label: "Semilla", icon: "🌰", date: plant.fechas.siembra },
       { key: "brote", label: "Brote", icon: "🌱", date: plant.fechas.brote },
       { key: "primeraFlor", label: "Flor", icon: "🌸", date: plant.fechas.primeraFlor },
-      { key: "primerFruto", label: "Fruto", icon: "🍅", date: plant.fechas.primerFruto }
+      { key: "primerFruto", label: "Fruto", icon: "🍅", date: plant.fechas.primerFruto },
+      { key: "cosecha", label: "Cosecha", icon: "🧺", date: plant.fechas.cosecha }
     ];
   }
   let lastDoneIdx = -1;
@@ -72,8 +74,8 @@ function stageTrackHTML(plant) {
 }
 
 // --- Bed helpers ---
-function bedTypeLabel(tipo) { return tipo === "raised" ? "Bancal elevado" : "Cama de cultivo"; }
-function bedTypeIcon(tipo) { return tipo === "raised" ? "🟫" : "🟩"; }
+function bedTypeLabel(tipo) { return tipo === "semillero" ? "Semillero" : "Cama"; }
+function bedTypeIcon(tipo) { return tipo === "semillero" ? "🌱" : "🟫"; }
 
 function populateBedSelect(selectEl, opts = {}) {
   const beds = Store.getBeds();
@@ -123,22 +125,33 @@ async function renderHoy() {
     <div class="stat-box"><div class="stat-num">${new Set(plants.map(p => p.catalogId).filter(Boolean)).size}</div><div class="stat-label">Especies</div></div>
   `;
 
-  // Próximo a suceder: plantas sin fecha de siguiente etapa, o recientemente creadas
-  const upcoming = plants.filter(p => {
-    if (p.origen === "semilla") {
-      return p.fechas.siembra && !p.fechas.brote;
-    }
-    return false;
-  }).slice(0, 5);
-  const upcomingHTML = upcoming.length
-    ? upcoming.map(p => {
-        const dias = p.fechas.siembra ? daysBetween(p.fechas.siembra, new Date().toISOString().slice(0,10)) : 0;
-        return `<div class="card" style="padding:12px 14px;"><div class="card-row">
-          <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</div>
-          <div class="plant-sub">Sembrada hace ${dias} día${dias === 1 ? "" : "s"} — esperando brote</div></div>
-        </div></div>`;
-      }).join("")
-    : `<div class="card" style="font-size:0.86rem; color:var(--tierra-soft);">Nada pendiente por ahora. Registrá las etapas de tus plantas en la pestaña Plantas.</div>`;
+  // Esperando brote: sembradas pero sin fecha de brote
+  const esperandoBrote = plants.filter(p => p.origen === "semilla" && p.fechas.siembra && !p.fechas.brote);
+  // Listas para cosechar: ya dieron fruto pero sin fecha de cosecha registrada
+  const listasParaCosechar = plants.filter(p => p.fechas.primerFruto && !p.fechas.cosecha);
+
+  let upcomingHTML = "";
+  if (listasParaCosechar.length) {
+    upcomingHTML += listasParaCosechar.map(p => {
+      const dias = daysBetween(p.fechas.primerFruto, new Date().toISOString().slice(0,10));
+      return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
+        <div><div class="plant-name" style="font-size:0.88rem;">🧺 ${escapeHTML(plantDisplayName(p))}</div>
+        <div class="plant-sub">Con fruto desde hace ${dias} día${dias === 1 ? "" : "s"} — ¿lista para cosechar?</div></div>
+      </div></div>`;
+    }).join("");
+  }
+  if (esperandoBrote.length) {
+    upcomingHTML += esperandoBrote.map(p => {
+      const dias = daysBetween(p.fechas.siembra, new Date().toISOString().slice(0,10));
+      return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
+        <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</div>
+        <div class="plant-sub">Sembrada hace ${dias} día${dias === 1 ? "" : "s"} — esperando brote</div></div>
+      </div></div>`;
+    }).join("");
+  }
+  if (!upcomingHTML) {
+    upcomingHTML = `<div class="card" style="font-size:0.86rem; color:var(--tierra-soft);">Nada pendiente por ahora. Registrá las etapas de tus plantas en la pestaña Plantas.</div>`;
+  }
   document.getElementById("hoy-upcoming").innerHTML = upcomingHTML;
 
   // Clima resumido + alerta de helada
@@ -213,6 +226,7 @@ function renderBedDetail(bedId) {
 // ============ VISTA: PLANTAS ============
 let plantFilterCategory = "todas";
 let plantSearchTerm = "";
+let plantShowFinalizadas = false;
 
 function renderPlantFilters() {
   const cats = [["todas", "Todas"], ["hortaliza", "🥕 Hortalizas"], ["fruta", "🍓 Frutas"], ["hierba", "🌿 Hierbas"], ["flor", "🌼 Flores"]];
@@ -225,7 +239,7 @@ function renderPlants() {
   renderPlantFilters();
   const beds = Store.getBeds();
   const bedNameById = Object.fromEntries(beds.map(b => [b.id, b.nombre]));
-  let plants = Store.getPlants().filter(p => p.activa !== false);
+  let plants = Store.getPlants().filter(p => plantShowFinalizadas ? p.activa === false : p.activa !== false);
   if (plantFilterCategory !== "todas") {
     plants = plants.filter(p => {
       const cat = p.catalogId ? getCatalogPlant(p.catalogId) : null;
@@ -238,7 +252,9 @@ function renderPlants() {
   }
   const container = document.getElementById("plants-list");
   if (plants.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">🌿</div><h3>Sin plantas</h3><p>Agregá tu primera planta a un bancal.</p></div>`;
+    container.innerHTML = plantShowFinalizadas
+      ? `<div class="empty-state"><div class="icon">🧺</div><h3>Sin ciclos finalizados</h3><p>Cuando termines el ciclo de una planta, va a aparecer acá.</p></div>`
+      : `<div class="empty-state"><div class="icon">🌿</div><h3>Sin plantas</h3><p>Agregá tu primera planta a un bancal.</p></div>`;
     return;
   }
   container.innerHTML = plants.map(p => `
@@ -336,6 +352,9 @@ function renderPlantDetail(plantId) {
 
   document.getElementById("plant-detail-title").textContent = plantDisplayName(plant);
 
+  const estadoBadge = plant.activa === false
+    ? `<span class="bed-type-pill semillero" style="margin-left:8px;">Ciclo finalizado</span>` : "";
+
   let recsHTML = "";
   if (cat) {
     recsHTML = `
@@ -360,15 +379,20 @@ function renderPlantDetail(plantId) {
   document.getElementById("plant-detail-body").innerHTML = `
     <div class="card">
       <div class="card-row">
-        <div><div style="font-size:0.82rem; color:var(--tierra-soft);">${bed ? bedTypeIcon(bed.tipo) + " " + escapeHTML(bed.nombre) : "Sin bancal"}</div>
+        <div><div style="font-size:0.82rem; color:var(--tierra-soft);">${bed ? bedTypeIcon(bed.tipo) + " " + escapeHTML(bed.nombre) : "Sin bancal"}${estadoBadge}</div>
         ${plant.variedad ? `<div style="font-size:0.82rem; color:var(--tierra-soft);">Variedad: ${escapeHTML(plant.variedad)}</div>` : ""}</div>
       </div>
       ${stageTrackHTML(plant)}
       ${plant.notas ? `<div style="font-size:0.84rem; margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">${escapeHTML(plant.notas)}</div>` : ""}
     </div>
-    <div style="display:flex; gap:8px; margin-bottom:6px;">
-      <button class="btn btn-secondary" style="flex:1;" id="btn-open-edit-plant">Editar</button>
-      <button class="btn btn-secondary" style="flex:1;" id="btn-open-move-plant">Mover / trasplantar</button>
+    <div style="display:flex; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+      ${plant.activa === false ? `
+        <button class="btn btn-secondary" style="flex:1;" id="btn-reactivate-plant">Reactivar</button>
+      ` : `
+        <button class="btn btn-secondary" style="flex:1;" id="btn-open-edit-plant">Editar</button>
+        <button class="btn btn-secondary" style="flex:1;" id="btn-open-move-plant">Mover / trasplantar</button>
+        <button class="btn btn-ghost" style="flex-basis:100%;" id="btn-finish-plant">🧺 Finalizar ciclo (archivar)</button>
+      `}
     </div>
     ${recsHTML}
     <div class="section-title">Historial</div>
