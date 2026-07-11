@@ -166,8 +166,8 @@ h1, h2, h3, .display {
   font-size: 0.64rem; padding: 3px 8px; border-radius: 999px; font-weight: 600;
   background: var(--cream-2); color: var(--tierra-soft);
 }
-.bed-type-pill.raised { background: rgba(193,99,61,0.14); color: var(--terracota-dark); }
-.bed-type-pill.ground { background: rgba(107,122,79,0.14); color: var(--oliva-dark); }
+.bed-type-pill.cama { background: rgba(193,99,61,0.14); color: var(--terracota-dark); }
+.bed-type-pill.semillero { background: rgba(107,122,79,0.14); color: var(--oliva-dark); }
 .bed-plant-count { font-size: 0.78rem; color: var(--tierra-soft); margin-top: 4px; }
 .bed-mini-plants { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
 .mini-chip {
