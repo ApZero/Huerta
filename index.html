@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Huerto · Chaco</title>
+<meta name="description" content="Seguimiento de bancales, hortalizas, frutas, hierbas y flores del huerto.">
+<meta name="theme-color" content="#F5F0E6">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo-mark">🌱</div>
+  <div>
+    <h1>Huerto</h1>
+    <div class="sub" id="header-place">Chaco, Paraguay</div>
+  </div>
+</header>
+
+<!-- HOY -->
+<section class="view active" id="view-hoy">
+  <div id="hoy-frost-slot"></div>
+  <div id="hoy-weather-slot"></div>
+
+  <div class="section-title">Resumen</div>
+  <div class="stats-row" id="hoy-stats"></div>
+
+  <div class="section-title">Próximo a suceder</div>
+  <div id="hoy-upcoming"></div>
+</section>
+
+<!-- BANCALES -->
+<section class="view" id="view-bancales">
+  <div class="section-title">Bancales y camas de cultivo</div>
+  <div id="beds-list"></div>
+</section>
+
+<!-- PLANTAS -->
+<section class="view" id="view-plantas">
+  <div class="search-box"><input type="text" id="plant-search" placeholder="Buscar planta..."></div>
+  <div class="filter-chips" id="plant-filters"></div>
+  <div id="plants-list"></div>
+</section>
+
+<!-- CLIMA -->
+<section class="view" id="view-clima">
+  <div id="clima-content"></div>
+</section>
+
+<!-- AJUSTES -->
+<section class="view" id="view-ajustes">
+  <div class="section-title">Respaldo</div>
+  <div class="card">
+    <div class="link-row">
+      <div>
+        <div class="label">Respaldo automático diario</div>
+        <div class="value" id="last-backup-label">—</div>
+      </div>
+    </div>
+    <button class="btn btn-secondary btn-block" id="btn-manual-backup" style="margin-top:10px;">Descargar respaldo ahora</button>
+    <button class="btn btn-ghost btn-block" id="btn-import-backup" style="margin-top:8px;">Importar respaldo (.json)</button>
+    <input type="file" id="import-file-input" accept="application/json" style="display:none;">
+  </div>
+
+  <div class="section-title">Ubicación (para clima y heladas)</div>
+  <div class="card">
+    <div class="field">
+      <label>Lugar</label>
+      <input type="text" id="settings-lugar">
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Latitud</label><input type="text" id="settings-lat"></div>
+      <div class="field"><label>Longitud</label><input type="text" id="settings-lon"></div>
+    </div>
+    <div class="field">
+      <label>Umbral de helada (°C mínima)</label>
+      <input type="number" id="settings-umbral">
+    </div>
+    <button class="btn btn-primary btn-block" id="btn-save-settings">Guardar ubicación</button>
+  </div>
+
+  <div class="section-title">Acerca de</div>
+  <div class="card" style="font-size:0.84rem; color:var(--tierra-soft);">
+    Huerto · registro de bancales, plantas y clima para el Chaco paraguayo. Todos los datos se guardan en este dispositivo.
+  </div>
+</section>
+
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-view="hoy"><span class="icon">🌤️</span>Hoy</button>
+  <button class="nav-btn" data-view="bancales"><span class="icon">🟫</span>Bancales</button>
+  <button class="nav-btn" data-view="plantas"><span class="icon">🌿</span>Plantas</button>
+  <button class="nav-btn" data-view="clima"><span class="icon">☁️</span>Clima</button>
+  <button class="nav-btn" data-view="ajustes"><span class="icon">⚙️</span>Ajustes</button>
+</nav>
+
+<button class="fab" id="fab-add" title="Agregar">+</button>
+
+<!-- Sheet: elegir qué agregar -->
+<div class="sheet-backdrop" id="backdrop"></div>
+<div class="sheet" id="sheet-fab-choice">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;">Agregar</h2><button class="sheet-close" data-close>✕</button></div>
+  <button class="btn btn-secondary btn-block" id="choice-bed" style="margin-bottom:10px;">🟫 Nuevo bancal / cama de cultivo</button>
+  <button class="btn btn-secondary btn-block" id="choice-plant">🌿 Nueva planta</button>
+</div>
+
+<!-- Sheet: nuevo bancal -->
+<div class="sheet" id="sheet-bed-form">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;" id="bed-form-title">Nuevo bancal</h2><button class="sheet-close" data-close>✕</button></div>
+  <div class="field">
+    <label>Nombre</label>
+    <input type="text" id="bed-nombre" placeholder="Ej: Bancal norte">
+  </div>
+  <div class="field">
+    <label>Tipo</label>
+    <div class="seg-control" id="bed-tipo-control">
+      <button type="button" data-val="raised" class="active">Bancal elevado</button>
+      <button type="button" data-val="ground">Cama de cultivo</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Notas (opcional)</label>
+    <textarea id="bed-notas" placeholder="Tamaño, ubicación, sustrato..."></textarea>
+  </div>
+  <button class="btn btn-primary btn-block" id="btn-save-bed">Guardar bancal</button>
+  <button class="btn btn-danger btn-block" id="btn-delete-bed" style="display:none; margin-top:8px;">Eliminar bancal</button>
+</div>
+
+<!-- Sheet: detalle de bancal -->
+<div class="sheet" id="sheet-bed-detail">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;" id="bed-detail-title">Bancal</h2><button class="sheet-close" data-close>✕</button></div>
+  <div id="bed-detail-meta" style="margin-bottom:10px;"></div>
+  <button class="btn btn-secondary" id="btn-edit-bed" style="margin-bottom:14px;">Editar bancal</button>
+  <div class="section-title">Plantas en este bancal</div>
+  <div id="bed-detail-plants"></div>
+  <button class="btn btn-primary btn-block" id="btn-add-plant-to-bed" style="margin-top:12px;">+ Agregar planta aquí</button>
+</div>
+
+<!-- Sheet: nueva planta / editar planta -->
+<div class="sheet" id="sheet-plant-form">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;" id="plant-form-title">Nueva planta</h2><button class="sheet-close" data-close>✕</button></div>
+
+  <div class="field">
+    <label>Especie</label>
+    <input type="text" id="plant-catalog-search" placeholder="Buscar en el catálogo...">
+    <div id="plant-catalog-results"></div>
+  </div>
+  <div class="field" id="plant-selected-slot" style="display:none;"></div>
+
+  <div class="field">
+    <label>Nombre personalizado (opcional)</label>
+    <input type="text" id="plant-nombre-custom" placeholder="Ej: Tomate cherry de la abuela">
+  </div>
+  <div class="field">
+    <label>Variedad (opcional)</label>
+    <input type="text" id="plant-variedad" placeholder="Ej: Cherry, Perita, Criolla...">
+  </div>
+
+  <div class="field">
+    <label>Bancal / cama</label>
+    <select id="plant-bed-select"></select>
+  </div>
+  <div id="plant-companion-hints"></div>
+
+  <div class="field">
+    <label>Origen</label>
+    <div class="seg-control" id="plant-origen-control">
+      <button type="button" data-val="semilla" class="active">Semilla</button>
+      <button type="button" data-val="plantin">Plantín / ya crecido</button>
+    </div>
+  </div>
+
+  <div id="plant-dates-semilla">
+    <div class="field-row">
+      <div class="field"><label>Siembra</label><input type="date" id="fecha-siembra"></div>
+      <div class="field"><label>Primer brote</label><input type="date" id="fecha-brote"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Primera flor</label><input type="date" id="fecha-flor"></div>
+      <div class="field"><label>Primer fruto</label><input type="date" id="fecha-fruto"></div>
+    </div>
+  </div>
+  <div id="plant-dates-plantin" style="display:none;">
+    <div class="field-row">
+      <div class="field"><label>Fecha de compra / trasplante</label><input type="date" id="fecha-trasplante-inicial"></div>
+      <div class="field"><label>Primera flor</label><input type="date" id="fecha-flor-2"></div>
+    </div>
+    <div class="field">
+      <label>Primer fruto</label><input type="date" id="fecha-fruto-2">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Notas</label>
+    <textarea id="plant-notas" placeholder="Observaciones..."></textarea>
+  </div>
+
+  <button class="btn btn-primary btn-block" id="btn-save-plant">Guardar planta</button>
+  <button class="btn btn-danger btn-block" id="btn-delete-plant" style="display:none; margin-top:8px;">Eliminar planta</button>
+</div>
+
+<!-- Sheet: detalle de planta -->
+<div class="sheet" id="sheet-plant-detail">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;" id="plant-detail-title">Planta</h2><button class="sheet-close" data-close>✕</button></div>
+  <div id="plant-detail-body"></div>
+</div>
+
+<!-- Sheet: mover / trasplantar planta -->
+<div class="sheet" id="sheet-move-plant">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;">Mover / trasplantar</h2><button class="sheet-close" data-close>✕</button></div>
+  <div class="field">
+    <label>Nuevo bancal / cama</label>
+    <select id="move-bed-select"></select>
+  </div>
+  <div id="move-companion-hints"></div>
+  <div class="field">
+    <label>Fecha</label>
+    <input type="date" id="move-fecha">
+  </div>
+  <div class="field">
+    <label>Nota (opcional)</label>
+    <input type="text" id="move-nota" placeholder="Ej: se trasplantó por raíz apretada">
+  </div>
+  <button class="btn btn-primary btn-block" id="btn-confirm-move">Confirmar movimiento</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/data.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/weather.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
