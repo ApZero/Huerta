@@ -44,6 +44,10 @@
 <!-- PLANTAS -->
 <section class="view" id="view-plantas">
   <div class="search-box"><input type="text" id="plant-search" placeholder="Buscar planta..."></div>
+  <div class="seg-control" id="plant-status-control" style="margin-bottom:12px;">
+    <button type="button" data-val="activas" class="active">Activas</button>
+    <button type="button" data-val="finalizadas">🧺 Finalizadas</button>
+  </div>
   <div class="filter-chips" id="plant-filters"></div>
   <div id="plants-list"></div>
 </section>
@@ -121,8 +125,8 @@
   <div class="field">
     <label>Tipo</label>
     <div class="seg-control" id="bed-tipo-control">
-      <button type="button" data-val="raised" class="active">Bancal elevado</button>
-      <button type="button" data-val="ground">Cama de cultivo</button>
+      <button type="button" data-val="cama" class="active">🟫 Cama</button>
+      <button type="button" data-val="semillero">🌱 Semillero</button>
     </div>
   </div>
   <div class="field">
@@ -188,14 +192,18 @@
       <div class="field"><label>Primera flor</label><input type="date" id="fecha-flor"></div>
       <div class="field"><label>Primer fruto</label><input type="date" id="fecha-fruto"></div>
     </div>
+    <div class="field">
+      <label>Cosecha</label><input type="date" id="fecha-cosecha">
+    </div>
   </div>
   <div id="plant-dates-plantin" style="display:none;">
     <div class="field-row">
       <div class="field"><label>Fecha de compra / trasplante</label><input type="date" id="fecha-trasplante-inicial"></div>
       <div class="field"><label>Primera flor</label><input type="date" id="fecha-flor-2"></div>
     </div>
-    <div class="field">
-      <label>Primer fruto</label><input type="date" id="fecha-fruto-2">
+    <div class="field-row">
+      <div class="field"><label>Primer fruto</label><input type="date" id="fecha-fruto-2"></div>
+      <div class="field"><label>Cosecha</label><input type="date" id="fecha-cosecha-2"></div>
     </div>
   </div>
 
