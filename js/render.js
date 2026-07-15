@@ -29,6 +29,30 @@ function daysBetween(a, b) {
   return Math.round((new Date(b) - new Date(a)) / 86400000);
 }
 
+function addDaysToDate(dateStr, days) {
+  const d = new Date(dateStr + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function fmtShortDate(date) {
+  return date.toLocaleDateString("es-PY", { day: "numeric", month: "short" });
+}
+
+// Extrae un rango de días de un texto como "6-14 días", "12-18 meses hasta planta madura"
+// o "2-3 años hasta primera cosecha". Devuelve {min,max} en días, o null si no aplica (ej: "-").
+function parseDayRange(text) {
+  if (!text) return null;
+  const m = text.match(/(\d+)\s*-\s*(\d+)\s*(día|dias|mes|meses|año|años|anio|anios)/i);
+  if (!m) return null;
+  let min = parseInt(m[1], 10), max = parseInt(m[2], 10);
+  const unit = m[3].toLowerCase();
+  let mult = 1;
+  if (unit.startsWith("mes")) mult = 30;
+  else if (unit.startsWith("añ") || unit.startsWith("ani")) mult = 365;
+  return { min: min * mult, max: max * mult };
+}
+
 function toast(msg) {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -125,30 +149,73 @@ async function renderHoy() {
     <div class="stat-box"><div class="stat-num">${new Set(plants.map(p => p.catalogId).filter(Boolean)).size}</div><div class="stat-label">Especies</div></div>
   `;
 
-  // Esperando brote: sembradas pero sin fecha de brote
+  // Esperando brote: sembradas pero sin fecha de brote — mostramos ventana estimada según el catálogo
   const esperandoBrote = plants.filter(p => p.origen === "semilla" && p.fechas.siembra && !p.fechas.brote);
+  // Esperando fruto: todavía no hay fruto ni cosecha registrados — mostramos ventana estimada si hay datos de catálogo
+  const esperandoFruto = plants.filter(p => {
+    if (p.fechas.primerFruto || p.fechas.cosecha) return false;
+    const origen = p.origen === "semilla" ? p.fechas.siembra : p.fechas.trasplante;
+    return !!origen;
+  });
   // Listas para cosechar: ya dieron fruto pero sin fecha de cosecha registrada
   const listasParaCosechar = plants.filter(p => p.fechas.primerFruto && !p.fechas.cosecha);
 
+  const hoyISO = new Date().toISOString().slice(0, 10);
   let upcomingHTML = "";
+
   if (listasParaCosechar.length) {
     upcomingHTML += listasParaCosechar.map(p => {
-      const dias = daysBetween(p.fechas.primerFruto, new Date().toISOString().slice(0,10));
+      const dias = daysBetween(p.fechas.primerFruto, hoyISO);
       return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
         <div><div class="plant-name" style="font-size:0.88rem;">🧺 ${escapeHTML(plantDisplayName(p))}</div>
         <div class="plant-sub">Con fruto desde hace ${dias} día${dias === 1 ? "" : "s"} — ¿lista para cosechar?</div></div>
       </div></div>`;
     }).join("");
   }
-  if (esperandoBrote.length) {
-    upcomingHTML += esperandoBrote.map(p => {
-      const dias = daysBetween(p.fechas.siembra, new Date().toISOString().slice(0,10));
+
+  if (esperandoFruto.length) {
+    upcomingHTML += esperandoFruto.map(p => {
+      const cat = p.catalogId ? getCatalogPlant(p.catalogId) : null;
+      const origen = p.origen === "semilla" ? p.fechas.siembra : p.fechas.trasplante;
+      const rango = cat ? parseDayRange(cat.diasCosecha) : null;
+      let sub;
+      if (rango) {
+        const desde = addDaysToDate(origen, rango.min);
+        const hasta = addDaysToDate(origen, rango.max);
+        const yaEnVentana = new Date(hoyISO) >= desde;
+        sub = yaEnVentana
+          ? `Fruto/cosecha esperados desde el ${fmtShortDate(desde)} hasta el ${fmtShortDate(hasta)} (estimado)`
+          : `Fruto/cosecha esperados aproximadamente entre el ${fmtShortDate(desde)} y el ${fmtShortDate(hasta)} (estimado)`;
+      } else {
+        sub = "Todavía sin fruto ni cosecha registrados";
+      }
       return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
         <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</div>
-        <div class="plant-sub">Sembrada hace ${dias} día${dias === 1 ? "" : "s"} — esperando brote</div></div>
+        <div class="plant-sub">${sub}</div></div>
       </div></div>`;
     }).join("");
   }
+
+  if (esperandoBrote.length) {
+    upcomingHTML += esperandoBrote.map(p => {
+      const dias = daysBetween(p.fechas.siembra, hoyISO);
+      const cat = p.catalogId ? getCatalogPlant(p.catalogId) : null;
+      const rango = cat ? parseDayRange(cat.diasGerminacion) : null;
+      let sub;
+      if (rango) {
+        const desde = addDaysToDate(p.fechas.siembra, rango.min);
+        const hasta = addDaysToDate(p.fechas.siembra, rango.max);
+        sub = `Brote esperado entre el ${fmtShortDate(desde)} y el ${fmtShortDate(hasta)} (estimado) — sembrada hace ${dias} día${dias === 1 ? "" : "s"}`;
+      } else {
+        sub = `Sembrada hace ${dias} día${dias === 1 ? "" : "s"} — esperando brote`;
+      }
+      return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
+        <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</div>
+        <div class="plant-sub">${sub}</div></div>
+      </div></div>`;
+    }).join("");
+  }
+
   if (!upcomingHTML) {
     upcomingHTML = `<div class="card" style="font-size:0.86rem; color:var(--tierra-soft);">Nada pendiente por ahora. Registrá las etapas de tus plantas en la pestaña Plantas.</div>`;
   }
