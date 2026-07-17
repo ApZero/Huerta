@@ -35,8 +35,83 @@ function addDaysToDate(dateStr, days) {
   return d;
 }
 
-function fmtShortDate(date) {
-  return date.toLocaleDateString("es-PY", { day: "numeric", month: "short" });
+function fmtSimpleDate(date) {
+  const now = new Date();
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  if (date.getFullYear() !== now.getFullYear()) {
+    return `${day}/${month}/${date.getFullYear()}`;
+  }
+  return `${day}/${month}`;
+}
+
+// Proporciones típicas del tramo entre germinación (o trasplante) y cosecha
+// que se reparten entre brote→flor, flor→fruto y fruto→cosecha.
+const STAGE_SPLIT = { broteAFlor: 0.45, florAFruto: 0.20, frutoACosecha: 0.35 };
+const DEFAULT_GERM_DIAS = 10;
+const DEFAULT_COSECHA_DIAS = 70;
+
+const STAGE_META = {
+  brote: { label: "Brote", genero: "esperado" },
+  primeraFlor: { label: "Flor", genero: "esperada" },
+  primerFruto: { label: "Fruto", genero: "esperado" },
+  cosecha: { label: "Cosecha", genero: "esperada" }
+};
+
+// Calcula la próxima etapa pendiente de una planta y su fecha estimada,
+// usando la última etapa real registrada como punto de partida.
+function nextStageEstimate(plant) {
+  const cat = plant.catalogId ? getCatalogPlant(plant.catalogId) : null;
+  const germRange = cat ? parseDayRange(cat.diasGerminacion) : null;
+  const cosechaRange = cat ? parseDayRange(cat.diasCosecha) : null;
+  const germAvg = germRange ? (germRange.min + germRange.max) / 2 : DEFAULT_GERM_DIAS;
+  const cosechaAvg = cosechaRange ? (cosechaRange.min + cosechaRange.max) / 2 : DEFAULT_COSECHA_DIAS;
+
+  let stages;
+  let spanStart, spanEnd;
+  if (plant.origen === "semilla") {
+    stages = [
+      { key: "siembra", date: plant.fechas.siembra },
+      { key: "brote", date: plant.fechas.brote },
+      { key: "primeraFlor", date: plant.fechas.primeraFlor },
+      { key: "primerFruto", date: plant.fechas.primerFruto },
+      { key: "cosecha", date: plant.fechas.cosecha }
+    ];
+    spanStart = germAvg; spanEnd = Math.max(cosechaAvg, germAvg + 1);
+  } else {
+    stages = [
+      { key: "trasplante", date: plant.fechas.trasplante },
+      { key: "primeraFlor", date: plant.fechas.primeraFlor },
+      { key: "primerFruto", date: plant.fechas.primerFruto },
+      { key: "cosecha", date: plant.fechas.cosecha }
+    ];
+    spanStart = 0; spanEnd = Math.max(cosechaAvg, 1);
+  }
+
+  let lastKnownIdx = -1;
+  stages.forEach((s, i) => { if (s.date) lastKnownIdx = i; });
+  if (lastKnownIdx === -1 || lastKnownIdx === stages.length - 1) return null; // sin punto de partida, o ya completo
+
+  const nextStage = stages[lastKnownIdx + 1];
+  const lastDate = stages[lastKnownIdx].date;
+  const totalSpan = spanEnd - spanStart;
+
+  let delta;
+  if (nextStage.key === "brote") {
+    delta = germAvg;
+  } else if (nextStage.key === "primeraFlor") {
+    delta = STAGE_SPLIT.broteAFlor * totalSpan;
+  } else if (nextStage.key === "primerFruto") {
+    delta = STAGE_SPLIT.florAFruto * totalSpan;
+  } else if (nextStage.key === "cosecha") {
+    delta = STAGE_SPLIT.frutoACosecha * totalSpan;
+  } else {
+    delta = 0;
+  }
+
+  const estDate = addDaysToDate(lastDate, Math.round(delta));
+  const meta = STAGE_META[nextStage.key];
+  return { key: nextStage.key, label: meta.label, genero: meta.genero, date: estDate };
 }
 
 // Extrae un rango de días de un texto como "6-14 días", "12-18 meses hasta planta madura"
@@ -144,93 +219,53 @@ async function renderHoy() {
   document.getElementById("header-place").textContent = settings.lugar;
 
   document.getElementById("hoy-stats").innerHTML = `
-    <div class="stat-box"><div class="stat-num">${beds.length}</div><div class="stat-label">Bancales</div></div>
-    <div class="stat-box"><div class="stat-num">${plants.length}</div><div class="stat-label">Plantas activas</div></div>
-    <div class="stat-box"><div class="stat-num">${new Set(plants.map(p => p.catalogId).filter(Boolean)).size}</div><div class="stat-label">Especies</div></div>
+    <div class="stats-pills">
+      <span class="stat-pill">🟫 ${beds.length} bancal${beds.length === 1 ? "" : "es"}</span>
+      <span class="stat-pill">🌿 ${plants.length} planta${plants.length === 1 ? "" : "s"}</span>
+      <span class="stat-pill">🏷️ ${new Set(plants.map(p => p.catalogId).filter(Boolean)).size} especies</span>
+    </div>
   `;
 
-  // Esperando brote: sembradas pero sin fecha de brote — mostramos ventana estimada según el catálogo
-  const esperandoBrote = plants.filter(p => p.origen === "semilla" && p.fechas.siembra && !p.fechas.brote);
-  // Esperando fruto: todavía no hay fruto ni cosecha registrados — mostramos ventana estimada si hay datos de catálogo
-  const esperandoFruto = plants.filter(p => {
-    if (p.fechas.primerFruto || p.fechas.cosecha) return false;
-    const origen = p.origen === "semilla" ? p.fechas.siembra : p.fechas.trasplante;
-    return !!origen;
-  });
-  // Listas para cosechar: ya dieron fruto pero sin fecha de cosecha registrada
-  const listasParaCosechar = plants.filter(p => p.fechas.primerFruto && !p.fechas.cosecha);
+  // Próxima etapa esperada de cada planta, ordenada de la más próxima a la más lejana
+  const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+  const pendientes = plants
+    .map(p => ({ plant: p, est: nextStageEstimate(p) }))
+    .filter(x => x.est);
+  pendientes.sort((a, b) => a.est.date - b.est.date);
 
-  const hoyISO = new Date().toISOString().slice(0, 10);
-  let upcomingHTML = "";
-
-  if (listasParaCosechar.length) {
-    upcomingHTML += listasParaCosechar.map(p => {
-      const dias = daysBetween(p.fechas.primerFruto, hoyISO);
-      return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
-        <div><div class="plant-name" style="font-size:0.88rem;">🧺 ${escapeHTML(plantDisplayName(p))}</div>
-        <div class="plant-sub">Con fruto desde hace ${dias} día${dias === 1 ? "" : "s"} — ¿lista para cosechar?</div></div>
-      </div></div>`;
-    }).join("");
-  }
-
-  if (esperandoFruto.length) {
-    upcomingHTML += esperandoFruto.map(p => {
-      const cat = p.catalogId ? getCatalogPlant(p.catalogId) : null;
-      const origen = p.origen === "semilla" ? p.fechas.siembra : p.fechas.trasplante;
-      const rango = cat ? parseDayRange(cat.diasCosecha) : null;
-      let sub;
-      if (rango) {
-        const desde = addDaysToDate(origen, rango.min);
-        const hasta = addDaysToDate(origen, rango.max);
-        const yaEnVentana = new Date(hoyISO) >= desde;
-        sub = yaEnVentana
-          ? `Fruto/cosecha esperados desde el ${fmtShortDate(desde)} hasta el ${fmtShortDate(hasta)} (estimado)`
-          : `Fruto/cosecha esperados aproximadamente entre el ${fmtShortDate(desde)} y el ${fmtShortDate(hasta)} (estimado)`;
-      } else {
-        sub = "Todavía sin fruto ni cosecha registrados";
-      }
-      return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
-        <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</div>
-        <div class="plant-sub">${sub}</div></div>
-      </div></div>`;
-    }).join("");
-  }
-
-  if (esperandoBrote.length) {
-    upcomingHTML += esperandoBrote.map(p => {
-      const dias = daysBetween(p.fechas.siembra, hoyISO);
-      const cat = p.catalogId ? getCatalogPlant(p.catalogId) : null;
-      const rango = cat ? parseDayRange(cat.diasGerminacion) : null;
-      let sub;
-      if (rango) {
-        const desde = addDaysToDate(p.fechas.siembra, rango.min);
-        const hasta = addDaysToDate(p.fechas.siembra, rango.max);
-        sub = `Brote esperado entre el ${fmtShortDate(desde)} y el ${fmtShortDate(hasta)} (estimado) — sembrada hace ${dias} día${dias === 1 ? "" : "s"}`;
-      } else {
-        sub = `Sembrada hace ${dias} día${dias === 1 ? "" : "s"} — esperando brote`;
-      }
-      return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
-        <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</div>
-        <div class="plant-sub">${sub}</div></div>
-      </div></div>`;
-    }).join("");
-  }
-
-  if (!upcomingHTML) {
-    upcomingHTML = `<div class="card" style="font-size:0.86rem; color:var(--tierra-soft);">Nada pendiente por ahora. Registrá las etapas de tus plantas en la pestaña Plantas.</div>`;
-  }
+  const upcomingHTML = pendientes.map(({ plant: p, est }) => {
+    const vencida = est.date <= hoy0;
+    const texto = vencida
+      ? `${est.label} ${est.genero} desde el ${fmtSimpleDate(est.date)}`
+      : `${est.label} ${est.genero}: ${fmtSimpleDate(est.date)}`;
+    return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
+      <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</div>
+      <div class="plant-sub">${texto}</div></div>
+      ${vencida ? `<span style="font-size:1rem;">⏰</span>` : ""}
+    </div></div>`;
+  }).join("") || `<div class="card" style="font-size:0.86rem; color:var(--tierra-soft);">Nada pendiente por ahora. Registrá las etapas de tus plantas en la pestaña Plantas.</div>`;
   document.getElementById("hoy-upcoming").innerHTML = upcomingHTML;
 
-  // Clima resumido + alerta de helada
+  // Clima: actual + próximos días + alerta de helada
   try {
     const data = await Weather.getForecast();
     const dias = Weather.frostRisk(data);
     const hoyInfo = Weather.weatherCodeInfo(data.current.weathercode);
+    const forecastStrip = dias.slice(0, 6).map(d => {
+      const info = Weather.weatherCodeInfo(d.code);
+      const dow = new Date(d.fecha + "T12:00").toLocaleDateString("es-PY", { weekday: "short" });
+      return `<div class="forecast-day ${d.helada ? "helada" : ""}">
+        <div class="dow">${dow}</div>
+        <div class="icon">${d.helada ? "❄️" : info.icono}</div>
+        <div class="temps"><b>${Math.round(d.max)}°</b> ${Math.round(d.min)}°</div>
+      </div>`;
+    }).join("");
     document.getElementById("hoy-weather-slot").innerHTML = `
       <div class="weather-hero">
         <div class="place">${escapeHTML(settings.lugar)}</div>
         <div class="temp-now">${Math.round(data.current.temperature_2m)}°C</div>
         <div class="desc">${hoyInfo.icono} ${hoyInfo.texto}</div>
+        <div class="forecast-row" style="margin-top:14px;">${forecastStrip}</div>
       </div>`;
     const heladaDias = dias.filter(d => d.helada).slice(0, 3);
     if (heladaDias.length) {
@@ -247,6 +282,7 @@ async function renderHoy() {
     document.getElementById("hoy-frost-slot").innerHTML = "";
   }
 }
+
 
 // ============ VISTA: BANCALES ============
 function renderBeds() {
