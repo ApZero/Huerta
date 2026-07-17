@@ -10,7 +10,7 @@ const Weather = {
       return cache.data;
     }
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${settings.lat}&longitude=${settings.lon}` +
-      `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode` +
+      `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weathercode,windspeed_10m_max,windgusts_10m_max` +
       `&current=temperature_2m,weathercode` +
       `&timezone=auto&forecast_days=7`;
     const res = await fetch(url);
@@ -46,5 +46,19 @@ const Weather = {
       helada: data.daily.temperature_2m_min[i] <= umbral
     }));
     return dias;
+  },
+
+  // Devuelve lista de días con riesgo de viento fuerte según umbral configurado (ráfagas en km/h)
+  windRisk(data) {
+    const settings = Store.getSettings();
+    const umbral = settings.umbralViento ?? 40;
+    const rafagas = data.daily.windgusts_10m_max || [];
+    const velocidad = data.daily.windspeed_10m_max || [];
+    return data.daily.time.map((fecha, i) => ({
+      fecha,
+      rafagaMax: rafagas[i],
+      velocidadMax: velocidad[i],
+      ventoFuerte: (rafagas[i] ?? 0) >= umbral
+    }));
   }
 };

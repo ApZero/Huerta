@@ -108,9 +108,9 @@ const Store = {
   },
 
   getSettings() {
-    return loadJSON(STORAGE_KEYS.settings, {
-      lat: -22.34, lon: -60.03, lugar: "Filadelfia, Chaco, Paraguay", umbralHelada: 3
-    });
+    const defaults = { lat: -22.34, lon: -60.03, lugar: "Filadelfia, Chaco, Paraguay", umbralHelada: 3, umbralViento: 40 };
+    const saved = loadJSON(STORAGE_KEYS.settings, {});
+    return { ...defaults, ...saved };
   },
   saveSettings(s) { saveJSON(STORAGE_KEYS.settings, s); },
 

@@ -367,6 +367,7 @@ function loadSettingsForm() {
   document.getElementById("settings-lat").value = s.lat;
   document.getElementById("settings-lon").value = s.lon;
   document.getElementById("settings-umbral").value = s.umbralHelada;
+  document.getElementById("settings-umbral-viento").value = s.umbralViento;
   const meta = Backup.getMeta();
   document.getElementById("last-backup-label").textContent = meta.lastAutoBackup
     ? `Último respaldo automático: ${meta.lastAutoBackup}`
@@ -378,7 +379,8 @@ document.getElementById("btn-save-settings").addEventListener("click", () => {
   const lat = parseFloat(document.getElementById("settings-lat").value);
   const lon = parseFloat(document.getElementById("settings-lon").value);
   const umbralHelada = parseFloat(document.getElementById("settings-umbral").value);
-  Store.saveSettings({ lugar, lat, lon, umbralHelada });
+  const umbralViento = parseFloat(document.getElementById("settings-umbral-viento").value);
+  Store.saveSettings({ lugar, lat, lon, umbralHelada, umbralViento });
   toast("Ubicación guardada");
 });
 

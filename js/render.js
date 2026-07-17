@@ -210,6 +210,25 @@ function companionHintsForBed(catalogId, bedId, excludePlantId) {
   return html;
 }
 
+function diaSemanaLargo(fecha) {
+  return new Date(fecha + "T12:00").toLocaleDateString("es-PY", { weekday: "long" });
+}
+
+// Arma el HTML de alertas combinadas de helada y viento fuerte para los próximos días.
+function buildAlertsHTML(heladaDias, ventoDias) {
+  const partes = [];
+  if (heladaDias.length) {
+    partes.push(`<div>❄️ <b>Riesgo de helada:</b> ${heladaDias.map(d => `${diaSemanaLargo(d.fecha)} (mín. ${Math.round(d.min)}°C)`).join(" · ")}. Protegé las plantas sensibles.</div>`);
+  }
+  if (ventoDias.length) {
+    partes.push(`<div>💨 <b>Viento fuerte:</b> ${ventoDias.map(d => `${diaSemanaLargo(d.fecha)} (ráfagas ~${Math.round(d.rafagaMax)} km/h)`).join(" · ")}. Reforzá tutores y protecciones.</div>`);
+  }
+  if (!partes.length) {
+    return `<div class="frost-none">✅ Sin riesgo de helada ni viento fuerte en los próximos días.</div>`;
+  }
+  return `<div class="frost-alert">${partes.join("")}</div>`;
+}
+
 // ============ VISTA: HOY ============
 async function renderHoy() {
   const beds = Store.getBeds();
@@ -246,15 +265,16 @@ async function renderHoy() {
   }).join("") || `<div class="card" style="font-size:0.86rem; color:var(--tierra-soft);">Nada pendiente por ahora. Registrá las etapas de tus plantas en la pestaña Plantas.</div>`;
   document.getElementById("hoy-upcoming").innerHTML = upcomingHTML;
 
-  // Clima: actual + próximos días + alerta de helada
+  // Clima: actual + próximos días + alertas de helada y viento
   try {
     const data = await Weather.getForecast();
     const dias = Weather.frostRisk(data);
+    const vientoDias = Weather.windRisk(data);
     const hoyInfo = Weather.weatherCodeInfo(data.current.weathercode);
-    const forecastStrip = dias.slice(0, 6).map(d => {
+    const forecastStrip = dias.slice(0, 5).map(d => {
       const info = Weather.weatherCodeInfo(d.code);
       const dow = new Date(d.fecha + "T12:00").toLocaleDateString("es-PY", { weekday: "short" });
-      return `<div class="forecast-day ${d.helada ? "helada" : ""}">
+      return `<div class="forecast-day on-dark ${d.helada ? "helada" : ""}">
         <div class="dow">${dow}</div>
         <div class="icon">${d.helada ? "❄️" : info.icono}</div>
         <div class="temps"><b>${Math.round(d.max)}°</b> ${Math.round(d.min)}°</div>
@@ -262,21 +282,18 @@ async function renderHoy() {
     }).join("");
     document.getElementById("hoy-weather-slot").innerHTML = `
       <div class="weather-hero">
-        <div class="place">${escapeHTML(settings.lugar)}</div>
-        <div class="temp-now">${Math.round(data.current.temperature_2m)}°C</div>
-        <div class="desc">${hoyInfo.icono} ${hoyInfo.texto}</div>
-        <div class="forecast-row" style="margin-top:14px;">${forecastStrip}</div>
+        <div class="wh-top">
+          <div>
+            <div class="place">${escapeHTML(settings.lugar)}</div>
+            <span class="temp-now">${Math.round(data.current.temperature_2m)}°C</span>
+          </div>
+          <div class="desc">${hoyInfo.icono} ${hoyInfo.texto}</div>
+        </div>
+        <div class="forecast-row" style="margin-top:10px;">${forecastStrip}</div>
       </div>`;
     const heladaDias = dias.filter(d => d.helada).slice(0, 3);
-    if (heladaDias.length) {
-      document.getElementById("hoy-frost-slot").innerHTML = `
-        <div class="frost-alert">
-          <span class="icon">❄️</span>
-          <div><b>Riesgo de helada</b><br>${heladaDias.map(d => `${new Date(d.fecha + "T12:00").toLocaleDateString("es-PY", { weekday: "long" })} (mín. ${Math.round(d.min)}°C)`).join(" · ")}. Protegé las plantas sensibles.</div>
-        </div>`;
-    } else {
-      document.getElementById("hoy-frost-slot").innerHTML = `<div class="frost-none">❄️ Sin riesgo de helada en los próximos días.</div>`;
-    }
+    const ventoFuerteDias = vientoDias.filter(d => d.ventoFuerte).slice(0, 3);
+    document.getElementById("hoy-frost-slot").innerHTML = buildAlertsHTML(heladaDias, ventoFuerteDias);
   } catch (e) {
     document.getElementById("hoy-weather-slot").innerHTML = `<div class="card">No se pudo cargar el clima. Revisá tu conexión.</div>`;
     document.getElementById("hoy-frost-slot").innerHTML = "";
@@ -381,14 +398,11 @@ async function renderClima() {
   try {
     const data = await Weather.getForecast(true);
     const dias = Weather.frostRisk(data);
+    const vientoDias = Weather.windRisk(data);
     const settings = Store.getSettings();
     const heladaDias = dias.filter(d => d.helada);
-    let html = "";
-    if (heladaDias.length) {
-      html += `<div class="frost-alert"><span class="icon">❄️</span><div><b>Alerta de helada</b><br>Se esperan mínimas de ${Math.round(Math.min(...heladaDias.map(d=>d.min)))}°C o menos. Cubrí los almácigos y plantas sensibles (tomate, pimiento, berenjena, calabacín, pepino).</div></div>`;
-    } else {
-      html += `<div class="frost-none">❄️ Sin riesgo de helada (umbral: ${settings.umbralHelada}°C) en los próximos 7 días.</div>`;
-    }
+    const ventoFuerteDias = vientoDias.filter(d => d.ventoFuerte);
+    let html = buildAlertsHTML(heladaDias, ventoFuerteDias);
     html += `<div class="section-title">Próximos 7 días</div><div class="forecast-row">`;
     dias.forEach(d => {
       const info = Weather.weatherCodeInfo(d.code);
@@ -401,16 +415,18 @@ async function renderClima() {
     });
     html += `</div>`;
     html += `<div class="section-title">Detalle diario</div>`;
-    dias.forEach(d => {
+    dias.forEach((d, i) => {
       const info = Weather.weatherCodeInfo(d.code);
+      const viento = vientoDias[i];
       const fecha = new Date(d.fecha + "T12:00").toLocaleDateString("es-PY", { weekday: "long", day: "numeric", month: "short" });
       html += `<div class="card" style="padding:12px 14px;">
         <div class="card-row">
           <div style="font-size:0.86rem; text-transform:capitalize;">${fecha}</div>
           <div style="font-size:0.86rem;">${info.icono} ${info.texto}</div>
         </div>
-        <div style="font-size:0.8rem; color:var(--tierra-soft); margin-top:4px;">Máx ${Math.round(d.max)}°C · Mín ${Math.round(d.min)}°C · Prob. lluvia ${d.precip}%</div>
+        <div style="font-size:0.8rem; color:var(--tierra-soft); margin-top:4px;">Máx ${Math.round(d.max)}°C · Mín ${Math.round(d.min)}°C · Prob. lluvia ${d.precip}%${viento && viento.rafagaMax != null ? ` · Ráfagas ${Math.round(viento.rafagaMax)} km/h` : ""}</div>
         ${d.helada ? `<div style="font-size:0.8rem; color:var(--rojo-helada); margin-top:4px; font-weight:600;">❄️ Riesgo de helada</div>` : ""}
+        ${viento && viento.ventoFuerte ? `<div style="font-size:0.8rem; color:var(--rojo-helada); margin-top:4px; font-weight:600;">💨 Viento fuerte</div>` : ""}
       </div>`;
     });
     container.innerHTML = html;
