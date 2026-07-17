@@ -131,34 +131,42 @@ h1, h2, h3, .display {
 /* Weather panel */
 .weather-hero {
   background: linear-gradient(135deg, var(--oliva) 0%, var(--oliva-dark) 100%);
-  color: #fff; border-radius: var(--radius); padding: 20px; margin-bottom: 14px;
+  color: #fff; border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px;
 }
-.weather-hero .temp-now { font-size: 2.6rem; font-weight: 600; font-family: 'Fraunces', serif; line-height: 1; }
-.weather-hero .place { font-size: 0.78rem; opacity: 0.85; margin-bottom: 4px; }
-.weather-hero .desc { font-size: 0.9rem; opacity: 0.92; margin-top: 4px; }
+.weather-hero .wh-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.weather-hero .place { font-size: 0.72rem; opacity: 0.85; }
+.weather-hero .temp-now { font-size: 1.5rem; font-weight: 600; font-family: 'Fraunces', serif; }
+.weather-hero .desc { font-size: 0.78rem; opacity: 0.92; }
 
 .frost-alert {
   background: var(--rojo-helada); color: #fff; border-radius: var(--radius-sm);
-  padding: 12px 14px; margin-bottom: 14px; font-size: 0.86rem; display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 14px; margin-bottom: 12px; font-size: 0.82rem;
 }
-.frost-alert .icon { font-size: 1.3rem; }
+.frost-alert > div + div { margin-top: 8px; }
 .frost-none {
   background: rgba(107,122,79,0.12); color: var(--oliva-dark); border-radius: var(--radius-sm);
-  padding: 10px 14px; margin-bottom: 14px; font-size: 0.84rem;
+  padding: 9px 14px; margin-bottom: 12px; font-size: 0.82rem;
 }
 
 .forecast-row {
-  display: flex; overflow-x: auto; gap: 8px; padding-bottom: 4px; margin: 0 -4px;
+  display: flex; overflow-x: auto; gap: 6px; padding-bottom: 2px; margin: 0 -4px;
 }
 .forecast-day {
-  flex: 0 0 auto; width: 76px; background: #fff; border: 1px solid var(--line);
-  border-radius: var(--radius-sm); padding: 10px 8px; text-align: center;
+  flex: 0 0 auto; width: 58px; background: #fff; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: 7px 4px; text-align: center;
 }
 .forecast-day.helada { border-color: var(--rojo-helada); background: #FBEEEC; }
-.forecast-day .dow { font-size: 0.68rem; color: var(--tierra-soft); text-transform: capitalize; }
-.forecast-day .icon { font-size: 1.3rem; margin: 4px 0; }
-.forecast-day .temps { font-size: 0.72rem; }
+.forecast-day .dow { font-size: 0.62rem; color: var(--tierra-soft); text-transform: capitalize; }
+.forecast-day .icon { font-size: 1.05rem; margin: 2px 0; }
+.forecast-day .temps { font-size: 0.66rem; }
 .forecast-day .temps b { color: var(--terracota-dark); }
+
+/* Variante para usar sobre el fondo oscuro de la tarjeta de clima */
+.forecast-day.on-dark { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.18); }
+.forecast-day.on-dark.helada { border-color: #fff; background: rgba(179,74,60,0.55); }
+.forecast-day.on-dark .dow { color: #fff; opacity: 0.85; }
+.forecast-day.on-dark .temps { color: #fff; }
+.forecast-day.on-dark .temps b { color: #fff; }
 
 /* Beds */
 .bed-card { cursor: pointer; }
