@@ -253,10 +253,11 @@ h1, h2, h3, .display {
 .empty-state p { font-size: 0.88rem; margin: 4px 0 16px; }
 
 /* Stats row on Hoy */
-.stats-row { display: flex; gap: 10px; }
-.stat-box { flex: 1; background: #fff; border-radius: var(--radius-sm); border: 1px solid var(--line); padding: 12px; text-align: center; }
-.stat-num { font-size: 1.5rem; font-weight: 700; color: var(--terracota-dark); }
-.stat-label { font-size: 0.68rem; color: var(--tierra-soft); margin-top: 2px; }
+.stats-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.stat-pill {
+  font-size: 0.76rem; font-weight: 600; background: #fff; border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 12px; color: var(--tierra);
+}
 
 /* Toast */
 .toast {
