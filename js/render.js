@@ -47,35 +47,16 @@ function fmtSimpleDate(date) {
 
 // Proporciones típicas del tramo entre germinación (o trasplante) y cosecha
 // que se reparten entre brote→flor, flor→fruto y fruto→cosecha.
-// Proporciones típicas del tramo entre germinación (o trasplante) y cosecha
-// que se reparten entre brote→flor, flor→fruto y fruto→cosecha (solo aplica a plantas
-// de ciclo completo, es decir las que efectivamente dan fruto).
 const STAGE_SPLIT = { broteAFlor: 0.45, florAFruto: 0.20, frutoACosecha: 0.35 };
-const DIAS_FLOR_A_CORTE = 7; // para flores ornamentales: tiempo estimado de floración a corte/cosecha
 const DEFAULT_GERM_DIAS = 10;
 const DEFAULT_COSECHA_DIAS = 70;
 
 const STAGE_META = {
-  brote: { label: "Brote", genero: "esperado", icon: "🌱" },
-  primeraFlor: { label: "Flor", genero: "esperada", icon: "🌸" },
-  primerFruto: { label: "Fruto", genero: "esperado", icon: "🍅" },
-  cosecha: { label: "Cosecha", genero: "esperada", icon: "🧺" }
+  brote: { label: "Brote", genero: "esperado" },
+  primeraFlor: { label: "Flor", genero: "esperada" },
+  primerFruto: { label: "Fruto", genero: "esperado" },
+  cosecha: { label: "Cosecha", genero: "esperada" }
 };
-
-// Arma la secuencia de etapas de una planta (incluida la etapa de origen), saltando
-// flor/fruto cuando no son relevantes para ese tipo de cultivo (ver cycleType en data.js).
-function stagesForPlant(plant) {
-  const rel = relevantStageKeys(plant.catalogId);
-  const stages = [];
-  if (plant.origen === "semilla") {
-    stages.push({ key: "siembra", label: "Semilla", icon: "🌰", date: plant.fechas.siembra });
-    rel.forEach(k => stages.push({ key: k, label: STAGE_META[k].label, icon: STAGE_META[k].icon, date: plant.fechas[k] }));
-  } else {
-    stages.push({ key: "trasplante", label: "Plantín", icon: "🌱", date: plant.fechas.trasplante });
-    rel.filter(k => k !== "brote").forEach(k => stages.push({ key: k, label: STAGE_META[k].label, icon: STAGE_META[k].icon, date: plant.fechas[k] }));
-  }
-  return stages;
-}
 
 // Calcula la próxima etapa pendiente de una planta y su fecha estimada,
 // usando la última etapa real registrada como punto de partida.
@@ -85,35 +66,47 @@ function nextStageEstimate(plant) {
   const cosechaRange = cat ? parseDayRange(cat.diasCosecha) : null;
   const germAvg = germRange ? (germRange.min + germRange.max) / 2 : DEFAULT_GERM_DIAS;
   const cosechaAvg = cosechaRange ? (cosechaRange.min + cosechaRange.max) / 2 : DEFAULT_COSECHA_DIAS;
-  const tipo = cycleType(plant.catalogId);
 
-  const stages = stagesForPlant(plant);
+  let stages;
+  let spanStart, spanEnd;
+  if (plant.origen === "semilla") {
+    stages = [
+      { key: "siembra", date: plant.fechas.siembra },
+      { key: "brote", date: plant.fechas.brote },
+      { key: "primeraFlor", date: plant.fechas.primeraFlor },
+      { key: "primerFruto", date: plant.fechas.primerFruto },
+      { key: "cosecha", date: plant.fechas.cosecha }
+    ];
+    spanStart = germAvg; spanEnd = Math.max(cosechaAvg, germAvg + 1);
+  } else {
+    stages = [
+      { key: "trasplante", date: plant.fechas.trasplante },
+      { key: "primeraFlor", date: plant.fechas.primeraFlor },
+      { key: "primerFruto", date: plant.fechas.primerFruto },
+      { key: "cosecha", date: plant.fechas.cosecha }
+    ];
+    spanStart = 0; spanEnd = Math.max(cosechaAvg, 1);
+  }
+
   let lastKnownIdx = -1;
   stages.forEach((s, i) => { if (s.date) lastKnownIdx = i; });
   if (lastKnownIdx === -1 || lastKnownIdx === stages.length - 1) return null; // sin punto de partida, o ya completo
 
   const nextStage = stages[lastKnownIdx + 1];
   const lastDate = stages[lastKnownIdx].date;
-
-  let spanStart, spanEnd;
-  if (plant.origen === "semilla") { spanStart = germAvg; spanEnd = Math.max(cosechaAvg, germAvg + 1); }
-  else { spanStart = 0; spanEnd = Math.max(cosechaAvg, 1); }
   const totalSpan = spanEnd - spanStart;
 
   let delta;
   if (nextStage.key === "brote") {
     delta = germAvg;
-  } else if (tipo === "sinFlorFruto") {
-    // Única transición restante: de brote (o trasplante) directo a cosecha.
-    delta = totalSpan;
-  } else if (tipo === "florSinFruto") {
-    // Para flores, "diasCosecha" en el catálogo representa el tiempo hasta la floración.
-    if (nextStage.key === "primeraFlor") delta = totalSpan;
-    else delta = DIAS_FLOR_A_CORTE; // cosecha (corte de flor) poco después de florecer
+  } else if (nextStage.key === "primeraFlor") {
+    delta = STAGE_SPLIT.broteAFlor * totalSpan;
+  } else if (nextStage.key === "primerFruto") {
+    delta = STAGE_SPLIT.florAFruto * totalSpan;
+  } else if (nextStage.key === "cosecha") {
+    delta = STAGE_SPLIT.frutoACosecha * totalSpan;
   } else {
-    if (nextStage.key === "primeraFlor") delta = STAGE_SPLIT.broteAFlor * totalSpan;
-    else if (nextStage.key === "primerFruto") delta = STAGE_SPLIT.florAFruto * totalSpan;
-    else delta = STAGE_SPLIT.frutoACosecha * totalSpan;
+    delta = 0;
   }
 
   const estDate = addDaysToDate(lastDate, Math.round(delta));
@@ -145,7 +138,23 @@ function toast(msg) {
 
 // --- Stage track (elemento distintivo) ---
 function stageTrackHTML(plant) {
-  const stages = stagesForPlant(plant);
+  let stages;
+  if (plant.origen === "plantin") {
+    stages = [
+      { key: "trasplante", label: "Plantín", icon: "🌱", date: plant.fechas.trasplante },
+      { key: "primeraFlor", label: "Flor", icon: "🌸", date: plant.fechas.primeraFlor },
+      { key: "primerFruto", label: "Fruto", icon: "🍅", date: plant.fechas.primerFruto },
+      { key: "cosecha", label: "Cosecha", icon: "🧺", date: plant.fechas.cosecha }
+    ];
+  } else {
+    stages = [
+      { key: "siembra", label: "Semilla", icon: "🌰", date: plant.fechas.siembra },
+      { key: "brote", label: "Brote", icon: "🌱", date: plant.fechas.brote },
+      { key: "primeraFlor", label: "Flor", icon: "🌸", date: plant.fechas.primeraFlor },
+      { key: "primerFruto", label: "Fruto", icon: "🍅", date: plant.fechas.primerFruto },
+      { key: "cosecha", label: "Cosecha", icon: "🧺", date: plant.fechas.cosecha }
+    ];
+  }
   let lastDoneIdx = -1;
   stages.forEach((s, i) => { if (s.date) lastDoneIdx = i; });
 
@@ -237,7 +246,6 @@ async function renderHoy() {
   `;
 
   // Próxima etapa esperada de cada planta, ordenada de la más próxima a la más lejana
-  const bedNameById = Object.fromEntries(beds.map(b => [b.id, b]));
   const hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
   const pendientes = plants
     .map(p => ({ plant: p, est: nextStageEstimate(p) }))
@@ -249,10 +257,8 @@ async function renderHoy() {
     const texto = vencida
       ? `${est.label} ${est.genero} desde el ${fmtSimpleDate(est.date)}`
       : `${est.label} ${est.genero}: ${fmtSimpleDate(est.date)}`;
-    const bed = p.bedId ? bedNameById[p.bedId] : null;
-    const bedTag = bed ? ` <span style="color:var(--tierra-soft); font-weight:400;">· ${bedTypeIcon(bed.tipo)} ${escapeHTML(bed.nombre)}</span>` : "";
     return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
-      <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}${bedTag}</div>
+      <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</div>
       <div class="plant-sub">${texto}</div></div>
       ${vencida ? `<span style="font-size:1rem;">⏰</span>` : ""}
     </div></div>`;
@@ -285,9 +291,8 @@ async function renderHoy() {
         </div>
         <div class="forecast-row" style="margin-top:10px;">${forecastStrip}</div>
       </div>`;
-    const diasAviso = settings.diasAviso ?? 3;
-    const heladaDias = dias.slice(0, diasAviso).filter(d => d.helada);
-    const ventoFuerteDias = vientoDias.slice(0, diasAviso).filter(d => d.ventoFuerte);
+    const heladaDias = dias.filter(d => d.helada).slice(0, 3);
+    const ventoFuerteDias = vientoDias.filter(d => d.ventoFuerte).slice(0, 3);
     document.getElementById("hoy-frost-slot").innerHTML = buildAlertsHTML(heladaDias, ventoFuerteDias);
   } catch (e) {
     document.getElementById("hoy-weather-slot").innerHTML = `<div class="card">No se pudo cargar el clima. Revisá tu conexión.</div>`;
@@ -295,103 +300,6 @@ async function renderHoy() {
   }
 }
 
-
-// ============ VISTA: CATÁLOGO (recetario de plantas) ============
-let catalogoActiveSubtab = "plantas";
-let catalogoFilterCategory = "todas";
-let catalogoSearchTerm = "";
-let catalogoMesSeleccionado = new Date().getMonth() + 1;
-
-const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-const MESES_LARGOS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-
-function renderCatalogoFilters() {
-  const cats = [["todas", "Todas"], ["hortaliza", "🥕 Hortalizas"], ["fruta", "🍓 Frutas"], ["hierba", "🌿 Hierbas"], ["flor", "🌼 Flores"]];
-  document.getElementById("catalogo-filters").innerHTML = cats.map(([key, label]) =>
-    `<button class="filter-chip ${catalogoFilterCategory === key ? "active" : ""}" data-cat="${key}">${label}</button>`
-  ).join("");
-}
-
-function renderCatalogoLista() {
-  renderCatalogoFilters();
-  let items = getAllCatalog();
-  if (catalogoFilterCategory !== "todas") items = items.filter(p => p.categoria === catalogoFilterCategory);
-  if (catalogoSearchTerm.trim()) {
-    const term = catalogoSearchTerm.toLowerCase();
-    items = items.filter(p => p.nombre.toLowerCase().includes(term));
-  }
-  items = items.slice().sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-  const container = document.getElementById("catalogo-list");
-  if (!items.length) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">📖</div><h3>Sin resultados</h3><p>Probá con otra búsqueda, o agregá una especie nueva con el botón +.</p></div>`;
-    return;
-  }
-  container.innerHTML = items.map(p => `
-    <div class="catalog-pick" data-catalog-detail-id="${p.id}" style="cursor:pointer;">
-      <div class="plant-icon">${CATEGORY_ICON[p.categoria] || "🌱"}</div>
-      <div style="flex:1;">
-        <div style="font-weight:600; font-size:0.9rem;">${escapeHTML(p.nombre)}${p.personalizada ? ' <span class="bed-type-pill semillero" style="font-size:0.6rem;">personalizada</span>' : ""}</div>
-        <div style="font-size:0.76rem; color:var(--tierra-soft);">${CATEGORY_LABEL[p.categoria] || ""} · ${SUN_LABEL[p.sol] || ""}</div>
-      </div>
-    </div>
-  `).join("");
-}
-
-function renderCatalogDetail(id) {
-  const p = getCatalogPlant(id);
-  if (!p) return;
-  document.getElementById("catalog-detail-title").textContent = p.nombre;
-  const meses = getMesesSiembra(id);
-  const mesesTxt = meses && meses.length ? meses.map(m => MESES_CORTOS[m - 1]).join(", ") : null;
-  document.getElementById("catalog-detail-body").innerHTML = `
-    <div class="card">
-      <div class="rec-item"><div class="rec-icon">☀️</div><div><div class="rec-label">Sol</div><div class="rec-text">${SUN_LABEL[p.sol] || p.sol || "-"}</div></div></div>
-      <div class="rec-item"><div class="rec-icon">💧</div><div><div class="rec-label">Riego</div><div class="rec-text">${escapeHTML(p.riego || "-")}</div></div></div>
-      <div class="rec-item"><div class="rec-icon">🌾</div><div><div class="rec-label">Fertilizante</div><div class="rec-text">${escapeHTML(p.fertilizante || "-")}</div></div></div>
-      <div class="rec-item"><div class="rec-icon">📏</div><div><div class="rec-label">Espaciado</div><div class="rec-text">${escapeHTML(p.espaciado || "-")}</div></div></div>
-      <div class="rec-item"><div class="rec-icon">🕐</div><div><div class="rec-label">Tiempos</div><div class="rec-text">Germinación: ${escapeHTML(p.diasGerminacion || "-")} · Cosecha: ${escapeHTML(p.diasCosecha || "-")}</div></div></div>
-      ${p.heladaSensible ? `<div class="rec-item"><div class="rec-icon">❄️</div><div><div class="rec-label">Heladas</div><div class="rec-text">Sensible al frío.</div></div></div>` : ""}
-      ${mesesTxt ? `<div class="rec-item"><div class="rec-icon">📅</div><div><div class="rec-label">Meses de siembra (Chaco)</div><div class="rec-text">${mesesTxt}</div></div></div>` : ""}
-      ${p.notas ? `<div class="rec-item"><div class="rec-icon">📝</div><div><div class="rec-label">Nota</div><div class="rec-text">${escapeHTML(p.notas)}</div></div></div>` : ""}
-    </div>
-    ${p.personalizada ? `
-    <div style="display:flex; gap:8px;">
-      <button class="btn btn-secondary" style="flex:1;" id="btn-edit-catalog-entry">Editar</button>
-      <button class="btn btn-danger" style="flex:1;" id="btn-remove-catalog-entry">Eliminar</button>
-    </div>` : `<div style="font-size:0.78rem; color:var(--tierra-soft);">Esta especie viene incluida en la app y no se puede editar.</div>`}
-  `;
-}
-
-function renderCalendarioMeses() {
-  document.getElementById("calendario-meses").innerHTML = MESES_CORTOS.map((m, i) =>
-    `<button class="filter-chip ${catalogoMesSeleccionado === i + 1 ? "active" : ""}" data-mes="${i + 1}">${m}</button>`
-  ).join("");
-}
-
-function renderCalendarioLista() {
-  renderCalendarioMeses();
-  const mes = catalogoMesSeleccionado;
-  const items = getAllCatalog().filter(p => {
-    const meses = getMesesSiembra(p.id);
-    return meses && meses.includes(mes);
-  }).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-  const container = document.getElementById("calendario-list");
-  if (!items.length) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">📅</div><h3>Nada recomendado</h3><p>No hay plantas del catálogo sugeridas para ${MESES_LARGOS[mes - 1]}.</p></div>`;
-    return;
-  }
-  container.innerHTML = `<div class="section-title">Se puede sembrar/plantar en ${MESES_LARGOS[mes - 1]}</div>` + items.map(p => `
-    <div class="catalog-pick" data-catalog-detail-id="${p.id}" style="cursor:pointer;">
-      <div class="plant-icon">${CATEGORY_ICON[p.categoria] || "🌱"}</div>
-      <div><div style="font-weight:600; font-size:0.88rem;">${escapeHTML(p.nombre)}</div><div style="font-size:0.72rem; color:var(--tierra-soft);">${CATEGORY_LABEL[p.categoria] || ""}</div></div>
-    </div>
-  `).join("");
-}
-
-function renderCatalogoTab() {
-  if (catalogoActiveSubtab === "calendario") renderCalendarioLista();
-  else renderCatalogoLista();
-}
 
 // ============ VISTA: BANCALES ============
 function renderBeds() {
@@ -492,9 +400,8 @@ async function renderClima() {
     const dias = Weather.frostRisk(data);
     const vientoDias = Weather.windRisk(data);
     const settings = Store.getSettings();
-    const diasAviso = settings.diasAviso ?? 3;
-    const heladaDias = dias.slice(0, diasAviso).filter(d => d.helada);
-    const ventoFuerteDias = vientoDias.slice(0, diasAviso).filter(d => d.ventoFuerte);
+    const heladaDias = dias.filter(d => d.helada);
+    const ventoFuerteDias = vientoDias.filter(d => d.ventoFuerte);
     let html = buildAlertsHTML(heladaDias, ventoFuerteDias);
     html += `<div class="section-title">Próximos 7 días</div><div class="forecast-row">`;
     dias.forEach(d => {
@@ -533,7 +440,7 @@ function renderCatalogResults(query) {
   const el = document.getElementById("plant-catalog-results");
   if (!query || query.trim().length < 1) { el.innerHTML = ""; return; }
   const term = query.toLowerCase();
-  const results = getAllCatalog().filter(p => p.nombre.toLowerCase().includes(term)).slice(0, 8);
+  const results = PLANT_CATALOG.filter(p => p.nombre.toLowerCase().includes(term)).slice(0, 8);
   el.innerHTML = results.map(p => `
     <div class="catalog-pick" data-catalog-id="${p.id}">
       <div class="plant-icon">${CATEGORY_ICON[p.categoria]}</div>

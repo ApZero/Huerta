@@ -1,6 +1,6 @@
 // Catálogo de plantas: recomendaciones de cultivo y combinaciones (asociación de cultivos).
 // Cada planta tiene un id estable usado para relaciones de compañerismo.
-const BUILTIN_CATALOG = [
+const PLANT_CATALOG = [
   { id: "tomate", nombre: "Tomate", categoria: "hortaliza", sol: "pleno", agua: "medio",
     riego: "Riego regular y profundo, 2-3 veces por semana. Evitar mojar el follaje para prevenir hongos.",
     fertilizante: "Rico en fósforo y potasio al florecer. Compost al trasplantar, refuerzo cada 3-4 semanas.",
@@ -307,16 +307,9 @@ const BUILTIN_CATALOG = [
     notas: "Prefiere clima fresco; en el Chaco conviene sembrarla en otoño-invierno para que florezca antes de los grandes calores. Toda la planta es tóxica si se ingiere — tener cuidado si hay animales o niños cerca. Se entutora bien porque las flores en espiga pueden pesar y doblarse con viento." },
 ];
 
-// Devuelve el catálogo completo: el catálogo base + las plantas que el usuario agregó.
-// Store.getCustomCatalog() se define en storage.js, cargado antes de que esto se use en tiempo de ejecución.
-function getAllCatalog() {
-  const custom = (typeof Store !== "undefined" && Store.getCustomCatalog) ? Store.getCustomCatalog() : [];
-  return BUILTIN_CATALOG.concat(custom);
-}
-
-// Devuelve info de catálogo por id (busca en catálogo base y en el personalizado)
+// Devuelve info de catálogo por id
 function getCatalogPlant(id) {
-  return getAllCatalog().find(p => p.id === id) || null;
+  return PLANT_CATALOG.find(p => p.id === id) || null;
 }
 
 // Evalúa relación entre dos plantas del catálogo: 'buena' | 'mala' | 'neutra'
@@ -324,60 +317,7 @@ function companionRelation(idA, idB) {
   if (idA === idB) return "neutra";
   const a = getCatalogPlant(idA), b = getCatalogPlant(idB);
   if (!a || !b) return "neutra";
-  if ((a.malos || []).includes(idB) || (b.malos || []).includes(idA)) return "mala";
-  if ((a.buenos || []).includes(idB) || (b.buenos || []).includes(idA)) return "buena";
+  if (a.malos.includes(idB) || b.malos.includes(idA)) return "mala";
+  if (a.buenos.includes(idB) || b.buenos.includes(idA)) return "buena";
   return "neutra";
-}
-
-// --- Clasificación del ciclo de etapas ---
-// Algunas plantas (de hoja, raíz o bulbo, y la mayoría de las hierbas de hoja) se cosechan
-// antes de florecer o directamente no producen un "fruto" relevante para el huerto — para
-// esas, no tiene sentido esperar una etapa de flor/fruto entre el brote y la cosecha.
-// Las flores ornamentales sí florecen (esa es la etapa principal) pero no dan fruto.
-const CATALOG_SIN_FLOR_FRUTO = new Set([
-  "lechuga", "zanahoria", "cebolla", "ajo", "rucula", "espinaca", "acelga", "remolacha", "rabanito", "papa", "repollo",
-  "albahaca", "perejil", "cilantro", "romero", "hinojo", "eneldo", "menta"
-]);
-const CATALOG_FLOR_SIN_FRUTO = new Set([
-  "girasol", "caléndula", "petunia", "rosa", "dalia", "espuela_caballero"
-]);
-
-function cycleType(catalogId) {
-  if (!catalogId) return "full";
-  if (CATALOG_SIN_FLOR_FRUTO.has(catalogId)) return "sinFlorFruto";
-  if (CATALOG_FLOR_SIN_FRUTO.has(catalogId)) return "florSinFruto";
-  return "full";
-}
-
-// Devuelve, en orden, las etapas relevantes después de la etapa de origen (siembra/trasplante).
-function relevantStageKeys(catalogId) {
-  const tipo = cycleType(catalogId);
-  if (tipo === "sinFlorFruto") return ["brote", "cosecha"];
-  if (tipo === "florSinFruto") return ["brote", "primeraFlor", "cosecha"];
-  return ["brote", "primeraFlor", "primerFruto", "cosecha"];
-}
-
-// --- Calendario de siembra para el Chaco paraguayo ---
-// Meses del 1 (enero) al 12 (diciembre) recomendados para sembrar/plantar cada especie,
-// pensados para el clima subtropical/semiárido del Chaco (veranos muy calurosos, inviernos
-// suaves con heladas ocasionales, sobre todo en junio-julio). Es una guía general — puede
-// variar según el año y el microclima de cada lugar.
-const SIEMBRA_MESES = {
-  tomate: [8, 9, 1, 2], pimiento: [8, 9, 1, 2], berenjena: [8, 9, 1],
-  lechuga: [3, 4, 5, 8, 9], zanahoria: [3, 4, 5, 8, 9], cebolla: [4, 5, 6], ajo: [4, 5, 6],
-  calabacin: [8, 9, 10, 1, 2], calabaza: [8, 9, 10], sandia: [9, 10, 11], melon: [9, 10, 11],
-  maiz: [8, 9, 10, 1], poroto: [8, 9, 10, 1, 2], arveja: [4, 5, 6],
-  rucula: [3, 4, 5, 8, 9], espinaca: [3, 4, 5, 6, 7, 8], acelga: [3, 4, 5, 8, 9], remolacha: [3, 4, 5, 8, 9],
-  rabanito: [3, 4, 5, 6, 7, 8, 9], pepino: [9, 10, 1, 2], papa: [4, 5, 6], repollo: [3, 4, 5, 8, 9],
-  albahaca: [9, 10, 11, 12, 1], perejil: [3, 4, 5, 8, 9], cilantro: [3, 4, 5, 8, 9], romero: [8, 9, 10],
-  hinojo: [3, 4, 5, 8, 9], eneldo: [3, 4, 5, 8, 9], menta: [8, 9, 10],
-  fresa: [3, 4, 5, 8, 9], limonero: [8, 9], naranjo: [8, 9],
-  girasol: [8, 9, 10, 1], "caléndula": [3, 4, 8, 9], petunia: [8, 9, 10], rosa: [7, 8, 9],
-  dalia: [8, 9], espuela_caballero: [4, 5, 6]
-};
-
-function getMesesSiembra(catalogId) {
-  const cat = getCatalogPlant(catalogId);
-  if (cat && cat.mesesSiembra && cat.mesesSiembra.length) return cat.mesesSiembra;
-  return SIEMBRA_MESES[catalogId] || null;
 }
