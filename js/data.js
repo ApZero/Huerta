@@ -1,6 +1,6 @@
 // Catálogo de plantas: recomendaciones de cultivo y combinaciones (asociación de cultivos).
 // Cada planta tiene un id estable usado para relaciones de compañerismo.
-const PLANT_CATALOG = [
+const BUILTIN_CATALOG = [
   { id: "tomate", nombre: "Tomate", categoria: "hortaliza", sol: "pleno", agua: "medio",
     riego: "Riego regular y profundo, 2-3 veces por semana. Evitar mojar el follaje para prevenir hongos.",
     fertilizante: "Rico en fósforo y potasio al florecer. Compost al trasplantar, refuerzo cada 3-4 semanas.",
@@ -307,9 +307,36 @@ const PLANT_CATALOG = [
     notas: "Prefiere clima fresco; en el Chaco conviene sembrarla en otoño-invierno para que florezca antes de los grandes calores. Toda la planta es tóxica si se ingiere — tener cuidado si hay animales o niños cerca. Se entutora bien porque las flores en espiga pueden pesar y doblarse con viento." },
 ];
 
-// Devuelve info de catálogo por id
+// Devuelve el catálogo completo: el catálogo base (con ediciones del usuario aplicadas
+// encima, si las hay) + las plantas que el usuario agregó desde cero.
+// Store.getCustomCatalog()/getCatalogOverrides() se definen en storage.js, cargado antes
+// de que esto se use en tiempo de ejecución.
+function getAllCatalog() {
+  const overrides = (typeof Store !== "undefined" && Store.getCatalogOverrides) ? Store.getCatalogOverrides() : {};
+  const custom = (typeof Store !== "undefined" && Store.getCustomCatalog) ? Store.getCustomCatalog() : [];
+  const builtinMerged = BUILTIN_CATALOG.map(p => {
+    const ov = overrides[p.id];
+    return ov ? { ...p, ...ov, esOverride: true } : p;
+  });
+  return builtinMerged.concat(custom);
+}
+
+// Ícono a mostrar para una entrada de catálogo (o la de una planta, vía su catálogo)
+function catalogIcon(p) {
+  if (!p) return "🌱";
+  return p.icono || CATEGORY_ICON[p.categoria] || "🌱";
+}
+
+// Manejo posterior a la flor/fruto (podar, replantar, cuántos años dura, etc.)
+function getPostCosecha(catalogId) {
+  const cat = getCatalogPlant(catalogId);
+  if (cat && cat.manejoPosterior) return cat.manejoPosterior;
+  return POST_COSECHA_INFO[catalogId] || null;
+}
+
+// Devuelve info de catálogo por id (busca en catálogo base y en el personalizado)
 function getCatalogPlant(id) {
-  return PLANT_CATALOG.find(p => p.id === id) || null;
+  return getAllCatalog().find(p => p.id === id) || null;
 }
 
 // Evalúa relación entre dos plantas del catálogo: 'buena' | 'mala' | 'neutra'
@@ -317,7 +344,104 @@ function companionRelation(idA, idB) {
   if (idA === idB) return "neutra";
   const a = getCatalogPlant(idA), b = getCatalogPlant(idB);
   if (!a || !b) return "neutra";
-  if (a.malos.includes(idB) || b.malos.includes(idA)) return "mala";
-  if (a.buenos.includes(idB) || b.buenos.includes(idA)) return "buena";
+  if ((a.malos || []).includes(idB) || (b.malos || []).includes(idA)) return "mala";
+  if ((a.buenos || []).includes(idB) || (b.buenos || []).includes(idA)) return "buena";
   return "neutra";
 }
+
+// --- Clasificación del ciclo de etapas ---
+// Algunas plantas (de hoja, raíz o bulbo, y la mayoría de las hierbas de hoja) se cosechan
+// antes de florecer o directamente no producen un "fruto" relevante para el huerto — para
+// esas, no tiene sentido esperar una etapa de flor/fruto entre el brote y la cosecha.
+// Las flores ornamentales sí florecen (esa es la etapa principal) pero no dan fruto.
+const CATALOG_SIN_FLOR_FRUTO = new Set([
+  "lechuga", "zanahoria", "cebolla", "ajo", "rucula", "espinaca", "acelga", "remolacha", "rabanito", "papa", "repollo",
+  "albahaca", "perejil", "cilantro", "romero", "hinojo", "eneldo", "menta"
+]);
+const CATALOG_FLOR_SIN_FRUTO = new Set([
+  "girasol", "caléndula", "petunia", "rosa", "dalia", "espuela_caballero"
+]);
+
+function cycleType(catalogId) {
+  if (!catalogId) return "full";
+  if (CATALOG_SIN_FLOR_FRUTO.has(catalogId)) return "sinFlorFruto";
+  if (CATALOG_FLOR_SIN_FRUTO.has(catalogId)) return "florSinFruto";
+  return "full";
+}
+
+// Devuelve, en orden, las etapas relevantes después de la etapa de origen (siembra/trasplante).
+function relevantStageKeys(catalogId) {
+  const tipo = cycleType(catalogId);
+  if (tipo === "sinFlorFruto") return ["brote", "cosecha"];
+  if (tipo === "florSinFruto") return ["brote", "primeraFlor", "cosecha"];
+  return ["brote", "primeraFlor", "primerFruto", "cosecha"];
+}
+
+// --- Calendario de siembra para el Chaco paraguayo ---
+// Meses del 1 (enero) al 12 (diciembre) recomendados para sembrar/plantar cada especie,
+// pensados para el clima subtropical/semiárido del Chaco (veranos muy calurosos, inviernos
+// suaves con heladas ocasionales, sobre todo en junio-julio). Es una guía general — puede
+// variar según el año y el microclima de cada lugar.
+const SIEMBRA_MESES = {
+  tomate: [8, 9, 1, 2], pimiento: [8, 9, 1, 2], berenjena: [8, 9, 1],
+  lechuga: [3, 4, 5, 8, 9], zanahoria: [3, 4, 5, 8, 9], cebolla: [4, 5, 6], ajo: [4, 5, 6],
+  calabacin: [8, 9, 10, 1, 2], calabaza: [8, 9, 10], sandia: [9, 10, 11], melon: [9, 10, 11],
+  maiz: [8, 9, 10, 1], poroto: [8, 9, 10, 1, 2], arveja: [4, 5, 6],
+  rucula: [3, 4, 5, 8, 9], espinaca: [3, 4, 5, 6, 7, 8], acelga: [3, 4, 5, 8, 9], remolacha: [3, 4, 5, 8, 9],
+  rabanito: [3, 4, 5, 6, 7, 8, 9], pepino: [9, 10, 1, 2], papa: [4, 5, 6], repollo: [3, 4, 5, 8, 9],
+  albahaca: [9, 10, 11, 12, 1], perejil: [3, 4, 5, 8, 9], cilantro: [3, 4, 5, 8, 9], romero: [8, 9, 10],
+  hinojo: [3, 4, 5, 8, 9], eneldo: [3, 4, 5, 8, 9], menta: [8, 9, 10],
+  fresa: [3, 4, 5, 8, 9], limonero: [8, 9], naranjo: [8, 9],
+  girasol: [8, 9, 10, 1], "caléndula": [3, 4, 8, 9], petunia: [8, 9, 10], rosa: [7, 8, 9],
+  dalia: [8, 9], espuela_caballero: [4, 5, 6]
+};
+
+function getMesesSiembra(catalogId) {
+  const cat = getCatalogPlant(catalogId);
+  if (cat && cat.mesesSiembra && cat.mesesSiembra.length) return cat.mesesSiembra;
+  return SIEMBRA_MESES[catalogId] || null;
+}
+
+// --- Manejo después de la flor/fruto ---
+// ¿Es anual o perenne? ¿Hay que podar, replantar, guardar semilla, rotar el cultivo?
+// Guía general para el Chaco paraguayo.
+const POST_COSECHA_INFO = {
+  tomate: "Anual. Una vez terminada la cosecha, arrancar la planta y rotar el cultivo (evitar replantar tomate en el mismo lugar al año siguiente).",
+  pimiento: "Anual, aunque en climas templados puede seguir 2 temporadas si se protege del frío. Al final, arrancar y rotar el cultivo.",
+  berenjena: "Anual (a veces sigue un poco más en climas cálidos). Cosecha continua mientras esté sana; al final de temporada, arrancar y rotar.",
+  lechuga: "Anual de ciclo corto. Cosechar antes de que florezca (se pone amarga); una vez que sube a flor, arrancar y resembrar.",
+  zanahoria: "Se cosecha la raíz antes de que florezca — si florece se pone leñosa, no vale la pena esperar.",
+  cebolla: "Cosechar cuando el follaje se dobla y amarillea. No conviene dejarla florecer: el bulbo pierde calidad.",
+  ajo: "Guardar unos dientes de cada cosecha como semilla para el ciclo siguiente. Cosechar cuando las hojas empiezan a secarse.",
+  calabacin: "Anual. Sigue dando frutos mientras se coseche seguido; al final de temporada, arrancar y rotar el cultivo.",
+  calabaza: "Da una sola cosecha grande hacia el final del ciclo; luego arrancar la planta.",
+  sandia: "Anual. Después de cosechar los frutos la planta declina — arrancar y rotar el cultivo.",
+  melon: "Anual. Igual que la sandía: después de la cosecha, arrancar y rotar.",
+  maiz: "Cada planta da una o dos mazorcas; después de cosechar, arrancar y rotar (agota el suelo — abonar bien antes de repetir).",
+  poroto: "Sigue floreciendo y dando vainas por semanas si se cosecha seguido. Al arrancarla deja nitrógeno en el suelo, buena antecesora de hojas verdes.",
+  arveja: "Cosecha continua mientras dure el fresco; con el calor deja de producir y se puede arrancar.",
+  rucula: "Ciclo muy corto, se va a flor rápido con calor. Una vez que florece se pone picante — mejor resembrar seguido en tandas.",
+  espinaca: "Se va a flor con el calor; cosechar antes de que eso pase. Resembrar en la próxima temporada fresca.",
+  acelga: "Se puede cosechar cortando hojas externas por meses sin arrancar la planta, mientras no suba a flor.",
+  remolacha: "Cosechar la raíz mientras es tierna; no conviene dejarla florecer.",
+  rabanito: "Ciclo muy corto — se pone leñoso y picante si florece. Cosechar rápido y resembrar seguido.",
+  pepino: "Sigue dando frutos varias semanas si se cosecha seguido; al final de temporada, arrancar y rotar.",
+  papa: "Se cosecha cuando el follaje se seca. Guardar algunos tubérculos sanos como semilla para la próxima siembra.",
+  repollo: "Se cosecha la cabeza entera cuando está compacta — no se puede volver a cosechar la misma planta.",
+  albahaca: "Despuntar las flores para que siga dando hojas más tiempo. Se pierde con la primera helada — resembrar en primavera.",
+  perejil: "Se puede seguir cosechando hojas por meses; al año siguiente florece y se pone amarga — conviene resembrar.",
+  cilantro: "Se va a flor rápido con calor. Dejar secar las semillas para volver a sembrar (coriandro), o resembrar en tandas.",
+  romero: "Perenne, dura muchos años. Podar después de la floración para mantener buena forma; no hace falta replantar.",
+  hinojo: "Cosechar el bulbo antes de que suba a flor.",
+  menta: "Perenne, rebrota cada primavera durante años. Podar después de floración para renovar el follaje; dividir la planta cada 2-3 años si se pone leñosa.",
+  eneldo: "Se va a flor con calor. Dejar secar las semillas para resembrar, o sembrar en tandas.",
+  fresa: "Perenne, productiva 2-3 años. Después baja la producción — dividir los estolones y replantar cada 2-3 años.",
+  limonero: "Perenne, productivo por muchos años (décadas). Podar cada año después de la cosecha para mantener forma y renovar ramas.",
+  naranjo: "Perenne, productivo por muchos años. Podar cada año después de la cosecha; puede tardar 2-3 años en dar la primera cosecha completa.",
+  girasol: "Anual. Si se deja secar la flor se pueden cosechar semillas; luego arrancar la planta.",
+  "caléndula": "Anual (a veces se resiembra sola). Despuntar flores marchitas para prolongar la floración.",
+  petunia: "Anual en climas con heladas. Podar/despuntar para prolongar floración; no suele sobrevivir heladas fuertes.",
+  rosa: "Perenne, dura muchos años. Podar después de cada floración (y una poda más fuerte en invierno) para que rebrote con más flores.",
+  dalia: "Perenne por tubérculo. En zonas con heladas conviene levantar los tubérculos después de la floración, guardarlos y replantar la próxima primavera; dividirlos cada 2-3 años.",
+  espuela_caballero: "Anual o bianual según la variedad. Dejar secar para juntar semilla; en climas cálidos como el Chaco no suele sobrevivir al verano."
+};

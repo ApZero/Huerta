@@ -8,7 +8,13 @@ let state = {
   selectedCatalogId: null, // especie elegida en el formulario de planta
   plantOrigen: "semilla",
   bedTipo: "cama",
-  targetBedForNewPlant: null // si se agrega desde el detalle de un bancal
+  targetBedForNewPlant: null, // si se agrega desde el detalle de un bancal
+  editingCatalogId: null,     // especie personalizada en edición (null = nueva)
+  currentCatalogDetailId: null,
+  catalogMesesSeleccionados: [],
+  photoViewContext: null,        // { context: 'bed'|'bitacora', entryId, parentId }
+  currentBitacoraPlantId: null,
+  bitacoraPhotoBlob: null
 };
 
 // ---------- Navegación entre vistas ----------
@@ -19,6 +25,7 @@ function switchView(viewName) {
   if (viewName === "hoy") renderHoy();
   if (viewName === "bancales") renderBeds();
   if (viewName === "plantas") renderPlants();
+  if (viewName === "catalogo") renderCatalogoTab();
   if (viewName === "clima") renderClima();
 }
 
@@ -49,6 +56,10 @@ document.getElementById("choice-plant").addEventListener("click", () => {
   closeAllSheets();
   state.targetBedForNewPlant = null;
   openPlantForm(null);
+});
+document.getElementById("choice-catalog").addEventListener("click", () => {
+  closeAllSheets();
+  openCatalogForm(null);
 });
 
 // ---------- Formulario de bancal ----------
@@ -159,14 +170,28 @@ document.getElementById("plant-catalog-results").addEventListener("click", (e) =
   document.getElementById("plant-catalog-results").innerHTML = "";
   renderSelectedCatalogPlant(state.selectedCatalogId);
   updateCompanionHintsInForm();
+  updateDateFieldsVisibility();
 });
 document.getElementById("plant-selected-slot").addEventListener("click", (e) => {
   if (e.target.id === "btn-clear-catalog") {
     state.selectedCatalogId = null;
     renderSelectedCatalogPlant(null);
     updateCompanionHintsInForm();
+    updateDateFieldsVisibility();
   }
 });
+
+// Muestra u oculta los campos de flor/fruto según si la especie elegida los tiene
+// (ej: cebolla o lechuga se cosechan directo después del brote, sin pasar por flor/fruto).
+function updateDateFieldsVisibility() {
+  const tipo = cycleType(state.selectedCatalogId);
+  const showFlor = tipo !== "sinFlorFruto";
+  const showFruto = tipo === "full";
+  document.getElementById("field-flor-semilla").style.display = showFlor ? "block" : "none";
+  document.getElementById("field-fruto-semilla").style.display = showFruto ? "block" : "none";
+  document.getElementById("field-flor-plantin").style.display = showFlor ? "block" : "none";
+  document.getElementById("field-fruto-plantin").style.display = showFruto ? "block" : "none";
+}
 
 document.getElementById("plant-bed-select").addEventListener("change", updateCompanionHintsInForm);
 function updateCompanionHintsInForm() {
@@ -217,6 +242,7 @@ function openPlantForm(plantId) {
   document.querySelectorAll("#plant-origen-control button").forEach(b => b.classList.toggle("active", b.dataset.val === state.plantOrigen));
   document.getElementById("plant-dates-semilla").style.display = state.plantOrigen === "semilla" ? "block" : "none";
   document.getElementById("plant-dates-plantin").style.display = state.plantOrigen === "plantin" ? "block" : "none";
+  updateDateFieldsVisibility();
   updateCompanionHintsInForm();
   openSheet("sheet-plant-form");
 }
@@ -329,6 +355,109 @@ document.getElementById("plant-detail-body").addEventListener("click", (e) => {
     renderBeds(); renderPlants();
     toast("Planta reactivada");
   }
+  if (e.target.id === "btn-add-bitacora") {
+    openBitacoraForm(state.currentPlantId);
+  }
+  const photoImg = e.target.closest("[data-photo-entry-id][data-context='bitacora']");
+  if (photoImg) {
+    openPhotoView(photoImg.src, "bitacora", photoImg.dataset.photoEntryId, photoImg.dataset.plantId);
+  }
+});
+
+// ---------- Fotos: ver en grande y eliminar ----------
+function openPhotoView(url, context, entryId, parentId) {
+  state.photoViewContext = { context, entryId, parentId };
+  document.getElementById("photo-view-body").innerHTML = `
+    <img src="${url}" style="width:100%; border-radius:12px; margin-bottom:12px;">
+    <button class="btn btn-danger btn-block" id="btn-delete-photo">Eliminar foto</button>
+  `;
+  openSheet("sheet-photo-view");
+}
+
+document.getElementById("photo-view-body").addEventListener("click", (e) => {
+  if (e.target.id !== "btn-delete-photo") return;
+  if (!confirm("¿Eliminar esta foto?")) return;
+  const { context, entryId, parentId } = state.photoViewContext;
+  if (context === "bed") {
+    Store.deleteBedPhoto(parentId, entryId);
+    closeAllSheets();
+    renderBedPhotosGrid(parentId);
+  } else if (context === "bitacora") {
+    Store.deleteBitacoraEntry(parentId, entryId);
+    closeAllSheets();
+    const plant = Store.getPlants().find(p => p.id === parentId);
+    if (plant) renderBitacoraTimeline(plant);
+  }
+  toast("Foto eliminada");
+});
+
+// ---------- Fotos de bancal ----------
+document.getElementById("btn-add-bed-photo").addEventListener("click", () => {
+  document.getElementById("bed-photo-input").click();
+});
+document.getElementById("bed-photo-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  toast("Guardando foto...");
+  try {
+    const blob = await PhotoStore.compressImage(file);
+    const fotoId = PhotoStore.newPhotoId();
+    await PhotoStore.save(fotoId, blob);
+    Store.addBedPhoto(state.currentBedId, { fotoId });
+    renderBedPhotosGrid(state.currentBedId);
+    toast("Foto agregada");
+  } catch (err) {
+    toast("No se pudo guardar la foto");
+  }
+  e.target.value = "";
+});
+document.getElementById("bed-photos-grid").addEventListener("click", (e) => {
+  const img = e.target.closest("[data-photo-entry-id][data-context='bed']");
+  if (!img) return;
+  openPhotoView(img.src, "bed", img.dataset.photoEntryId, img.dataset.bedId);
+});
+
+// ---------- Bitácora de planta (fotos + notas a lo largo del tiempo) ----------
+function openBitacoraForm(plantId) {
+  state.currentBitacoraPlantId = plantId;
+  state.bitacoraPhotoBlob = null;
+  document.getElementById("bitacora-photo-preview").innerHTML = "";
+  document.getElementById("bitacora-fecha").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("bitacora-etapa").value = "";
+  document.getElementById("bitacora-nota").value = "";
+  openSheet("sheet-bitacora-form");
+}
+document.getElementById("btn-pick-bitacora-photo").addEventListener("click", () => {
+  document.getElementById("bitacora-photo-input").click();
+});
+document.getElementById("bitacora-photo-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const blob = await PhotoStore.compressImage(file);
+    state.bitacoraPhotoBlob = blob;
+    const url = URL.createObjectURL(blob);
+    document.getElementById("bitacora-photo-preview").innerHTML = `<img src="${url}" style="width:100%; border-radius:10px; margin-top:6px;">`;
+  } catch (err) {
+    toast("No se pudo procesar la foto");
+  }
+  e.target.value = "";
+});
+document.getElementById("btn-save-bitacora").addEventListener("click", async () => {
+  const fecha = document.getElementById("bitacora-fecha").value || new Date().toISOString().slice(0, 10);
+  const etapa = document.getElementById("bitacora-etapa").value || null;
+  const nota = document.getElementById("bitacora-nota").value.trim();
+  if (!nota && !state.bitacoraPhotoBlob) { toast("Agregá una foto o una nota"); return; }
+  let fotoId = null;
+  if (state.bitacoraPhotoBlob) {
+    fotoId = PhotoStore.newPhotoId();
+    await PhotoStore.save(fotoId, state.bitacoraPhotoBlob);
+  }
+  Store.addBitacoraEntry(state.currentBitacoraPlantId, { etapa, nota, fotoId, fecha });
+  closeAllSheets();
+  const plant = Store.getPlants().find(p => p.id === state.currentBitacoraPlantId);
+  if (plant) renderBitacoraTimeline(plant);
+  toast("Agregado a la bitácora");
 });
 
 // ---------- Mover / trasplantar ----------
@@ -368,6 +497,7 @@ function loadSettingsForm() {
   document.getElementById("settings-lon").value = s.lon;
   document.getElementById("settings-umbral").value = s.umbralHelada;
   document.getElementById("settings-umbral-viento").value = s.umbralViento;
+  document.getElementById("settings-dias-aviso").value = s.diasAviso;
   const meta = Backup.getMeta();
   document.getElementById("last-backup-label").textContent = meta.lastAutoBackup
     ? `Último respaldo automático: ${meta.lastAutoBackup}`
@@ -380,12 +510,14 @@ document.getElementById("btn-save-settings").addEventListener("click", () => {
   const lon = parseFloat(document.getElementById("settings-lon").value);
   const umbralHelada = parseFloat(document.getElementById("settings-umbral").value);
   const umbralViento = parseFloat(document.getElementById("settings-umbral-viento").value);
-  Store.saveSettings({ lugar, lat, lon, umbralHelada, umbralViento });
+  const diasAviso = Math.max(1, Math.min(7, parseInt(document.getElementById("settings-dias-aviso").value, 10) || 3));
+  Store.saveSettings({ lugar, lat, lon, umbralHelada, umbralViento, diasAviso });
   toast("Ubicación guardada");
 });
 
-document.getElementById("btn-manual-backup").addEventListener("click", () => {
-  Backup.downloadBackup("huerto-backup");
+document.getElementById("btn-manual-backup").addEventListener("click", async () => {
+  toast("Preparando respaldo...");
+  await Backup.downloadBackup("huerto-backup");
   toast("Respaldo descargado");
 });
 
@@ -396,11 +528,12 @@ document.getElementById("import-file-input").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       const data = JSON.parse(reader.result);
       if (!confirm("Esto reemplazará los datos actuales con los del respaldo. ¿Continuar?")) return;
-      Store.importAll(data);
+      toast("Importando...");
+      await Store.importAll(data);
       toast("Respaldo importado");
       renderBeds(); renderPlants(); loadSettingsForm();
     } catch (err) {
@@ -417,6 +550,247 @@ document.getElementById("hoy-upcoming").addEventListener("click", (e) => {
   openPlantDetail(card.dataset.plantId);
 });
 
+document.getElementById("hoy-stats").addEventListener("click", (e) => {
+  const pill = e.target.closest("[data-filter-type]");
+  if (!pill) return;
+  const tipo = pill.dataset.filterType;
+  if (hoyFilterType === tipo) {
+    hoyFilterType = null;
+    hoyFilterValue = null;
+  } else {
+    hoyFilterType = tipo;
+    hoyFilterValue = null;
+  }
+  renderHoy();
+});
+document.getElementById("hoy-filter-row").addEventListener("click", (e) => {
+  const chip = e.target.closest(".filter-chip");
+  if (!chip) return;
+  const id = chip.dataset.filterId;
+  hoyFilterValue = hoyFilterValue === id ? null : id;
+  renderHoy();
+});
+
+// ---------- Catálogo (recetario de plantas) ----------
+document.getElementById("catalogo-tab-control").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#catalogo-tab-control button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  catalogoActiveSubtab = btn.dataset.val;
+  document.getElementById("catalogo-plantas-tab").style.display = catalogoActiveSubtab === "plantas" ? "block" : "none";
+  document.getElementById("catalogo-calendario-tab").style.display = catalogoActiveSubtab === "calendario" ? "block" : "none";
+  renderCatalogoTab();
+});
+
+document.getElementById("catalogo-search").addEventListener("input", (e) => {
+  catalogoSearchTerm = e.target.value;
+  renderCatalogoLista();
+});
+document.getElementById("catalogo-filters").addEventListener("click", (e) => {
+  const chip = e.target.closest(".filter-chip");
+  if (!chip) return;
+  catalogoFilterCategory = chip.dataset.cat;
+  renderCatalogoLista();
+});
+document.getElementById("calendario-meses").addEventListener("click", (e) => {
+  const chip = e.target.closest(".filter-chip");
+  if (!chip) return;
+  catalogoMesSeleccionado = parseInt(chip.dataset.mes, 10);
+  renderCalendarioLista();
+});
+
+function openCatalogDetail(id) {
+  state.currentCatalogDetailId = id;
+  renderCatalogDetail(id);
+  openSheet("sheet-catalog-detail");
+}
+document.getElementById("catalogo-list").addEventListener("click", (e) => {
+  const pick = e.target.closest("[data-catalog-detail-id]");
+  if (!pick) return;
+  openCatalogDetail(pick.dataset.catalogDetailId);
+});
+document.getElementById("calendario-list").addEventListener("click", (e) => {
+  const pick = e.target.closest("[data-catalog-detail-id]");
+  if (!pick) return;
+  openCatalogDetail(pick.dataset.catalogDetailId);
+});
+document.getElementById("catalog-detail-body").addEventListener("click", (e) => {
+  if (e.target.id === "btn-edit-catalog-entry") {
+    closeAllSheets();
+    openCatalogForm(state.currentCatalogDetailId);
+  }
+  if (e.target.id === "btn-reset-catalog-entry") {
+    if (!confirm("¿Restablecer esta especie a sus valores originales? Se perderán tus cambios.")) return;
+    Store.clearCatalogOverride(state.currentCatalogDetailId);
+    closeAllSheets();
+    renderCatalogoTab();
+    toast("Especie restablecida");
+  }
+  if (e.target.id === "btn-remove-catalog-entry") {
+    if (!confirm("¿Eliminar esta especie del catálogo?")) return;
+    Store.deleteCustomCatalogEntry(state.currentCatalogDetailId);
+    closeAllSheets();
+    renderCatalogoTab();
+    toast("Especie eliminada");
+  }
+});
+
+// --- Formulario manual del catálogo ---
+const ICONOS_SUGERIDOS = ["🍅", "🌶️", "🍆", "🥬", "🥕", "🧅", "🧄", "🎃", "🍉", "🍈", "🌽", "🫘", "🥒", "🥔",
+  "🍓", "🍋", "🍊", "🌻", "🌼", "🌹", "💐", "🌾", "🌿", "🍄", "🌵", "🪻", "🌸", "🍇", "🍑", "🌰"];
+
+function renderCatIconoSugeridos() {
+  document.getElementById("cat-icono-sugeridos").innerHTML = ICONOS_SUGERIDOS.map(ic =>
+    `<button type="button" class="filter-chip" data-icono="${ic}" style="font-size:1rem; padding:6px 10px;">${ic}</button>`
+  ).join("");
+}
+document.getElementById("cat-icono-sugeridos").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.getElementById("cat-icono").value = btn.dataset.icono;
+});
+
+function fillCatalogForm(data) {
+  document.getElementById("cat-nombre").value = data.nombre || "";
+  document.getElementById("cat-icono").value = data.icono || "";
+  document.getElementById("cat-categoria").value = data.categoria || "hortaliza";
+  document.getElementById("cat-sol").value = data.sol || "pleno";
+  document.getElementById("cat-agua").value = data.agua || "medio";
+  document.getElementById("cat-riego").value = data.riego || "";
+  document.getElementById("cat-fertilizante").value = data.fertilizante || "";
+  document.getElementById("cat-espaciado").value = data.espaciado || "";
+  document.getElementById("cat-germinacion").value = data.diasGerminacion || "";
+  document.getElementById("cat-cosecha").value = data.diasCosecha || "";
+  document.getElementById("cat-manejo-posterior").value = data.manejoPosterior || "";
+  document.getElementById("cat-notas").value = data.notas || "";
+  const helada = !!data.heladaSensible;
+  document.querySelectorAll("#cat-helada-control button").forEach(b => b.classList.toggle("active", b.dataset.val === (helada ? "si" : "no")));
+  const perenne = !!data.perenne;
+  document.querySelectorAll("#cat-perenne-control button").forEach(b => b.classList.toggle("active", b.dataset.val === (perenne ? "si" : "no")));
+}
+
+function renderCatMesesChips() {
+  document.getElementById("cat-meses-siembra").innerHTML = MESES_CORTOS.map((m, i) =>
+    `<button type="button" class="filter-chip ${state.catalogMesesSeleccionados.includes(i + 1) ? "active" : ""}" data-mes="${i + 1}">${m}</button>`
+  ).join("");
+}
+document.getElementById("cat-meses-siembra").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  const mes = parseInt(btn.dataset.mes, 10);
+  const idx = state.catalogMesesSeleccionados.indexOf(mes);
+  if (idx === -1) state.catalogMesesSeleccionados.push(mes);
+  else state.catalogMesesSeleccionados.splice(idx, 1);
+  renderCatMesesChips();
+});
+
+document.getElementById("cat-helada-control").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#cat-helada-control button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+});
+document.getElementById("cat-perenne-control").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#cat-perenne-control button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+});
+
+// state.editingCatalogId puede ser: null (nueva especie personalizada), un id "custom_..."
+// (especie personalizada existente), o un id del catálogo incluido (ej. "tomate") que se
+// guarda como override en vez de reemplazar el original.
+function openCatalogForm(id) {
+  state.editingCatalogId = id;
+  const deleteBtn = document.getElementById("btn-delete-catalog");
+  const resetBtn = document.getElementById("btn-reset-catalog");
+  const builtinNote = document.getElementById("catalog-form-builtin-note");
+  renderCatIconoSugeridos();
+
+  if (id) {
+    const cat = getCatalogPlant(id);
+    if (!cat) return;
+    document.getElementById("catalog-form-title").textContent = "Editar especie";
+    fillCatalogForm(cat);
+    state.catalogMesesSeleccionados = getMesesSiembra(id) ? [...getMesesSiembra(id)] : [];
+    if (cat.personalizada) {
+      deleteBtn.style.display = "block";
+      resetBtn.style.display = "none";
+      builtinNote.style.display = "none";
+    } else {
+      deleteBtn.style.display = "none";
+      resetBtn.style.display = cat.esOverride ? "block" : "none";
+      builtinNote.style.display = "block";
+    }
+  } else {
+    document.getElementById("catalog-form-title").textContent = "Nueva especie";
+    fillCatalogForm({});
+    state.catalogMesesSeleccionados = [];
+    deleteBtn.style.display = "none";
+    resetBtn.style.display = "none";
+    builtinNote.style.display = "none";
+  }
+  renderCatMesesChips();
+  openSheet("sheet-catalog-form");
+}
+
+document.getElementById("btn-save-catalog").addEventListener("click", () => {
+  const nombre = document.getElementById("cat-nombre").value.trim();
+  if (!nombre) { toast("Ponele un nombre a la especie"); return; }
+  const heladaSensible = document.querySelector("#cat-helada-control button.active").dataset.val === "si";
+  const perenne = document.querySelector("#cat-perenne-control button.active").dataset.val === "si";
+  const fields = {
+    nombre,
+    icono: document.getElementById("cat-icono").value.trim(),
+    categoria: document.getElementById("cat-categoria").value,
+    sol: document.getElementById("cat-sol").value,
+    agua: document.getElementById("cat-agua").value,
+    riego: document.getElementById("cat-riego").value.trim(),
+    fertilizante: document.getElementById("cat-fertilizante").value.trim(),
+    espaciado: document.getElementById("cat-espaciado").value.trim(),
+    diasGerminacion: document.getElementById("cat-germinacion").value.trim(),
+    diasCosecha: document.getElementById("cat-cosecha").value.trim(),
+    heladaSensible,
+    perenne,
+    manejoPosterior: document.getElementById("cat-manejo-posterior").value.trim(),
+    mesesSiembra: [...state.catalogMesesSeleccionados].sort((a, b) => a - b),
+    notas: document.getElementById("cat-notas").value.trim()
+  };
+
+  const isBuiltin = state.editingCatalogId && BUILTIN_CATALOG.some(p => p.id === state.editingCatalogId);
+  if (isBuiltin) {
+    Store.setCatalogOverride(state.editingCatalogId, fields);
+    toast("Especie actualizada");
+  } else if (state.editingCatalogId) {
+    Store.updateCustomCatalogEntry(state.editingCatalogId, { ...fields, buenos: [], malos: [] });
+    toast("Especie actualizada");
+  } else {
+    Store.addCustomCatalogEntry({ ...fields, buenos: [], malos: [] });
+    toast("Especie agregada al catálogo");
+  }
+  closeAllSheets();
+  renderCatalogoTab();
+});
+
+document.getElementById("btn-reset-catalog").addEventListener("click", () => {
+  if (!state.editingCatalogId) return;
+  if (!confirm("¿Restablecer esta especie a sus valores originales? Se perderán tus cambios.")) return;
+  Store.clearCatalogOverride(state.editingCatalogId);
+  closeAllSheets();
+  renderCatalogoTab();
+  toast("Especie restablecida");
+});
+
+document.getElementById("btn-delete-catalog").addEventListener("click", () => {
+  if (!state.editingCatalogId) return;
+  if (!confirm("¿Eliminar esta especie del catálogo? Las plantas que ya la usan van a mantener sus datos, pero dejarán de mostrar sus recomendaciones.")) return;
+  Store.deleteCustomCatalogEntry(state.editingCatalogId);
+  closeAllSheets();
+  renderCatalogoTab();
+  toast("Especie eliminada");
+});
+
 // ---------- Migración de datos ----------
 function migrateOldBedTypes() {
   const beds = Store.getBeds();
@@ -430,11 +804,11 @@ function migrateOldBedTypes() {
 }
 
 // ---------- Inicio ----------
-function init() {
+async function init() {
   migrateOldBedTypes();
   loadSettingsForm();
   switchView("hoy");
-  Backup.maybeAutoBackup();
+  await Backup.maybeAutoBackup();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
