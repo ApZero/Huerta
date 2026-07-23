@@ -3,7 +3,8 @@ const STORAGE_KEYS = {
   beds: "huerto_beds",
   plants: "huerto_plants",
   backupMeta: "huerto_backup_meta",
-  settings: "huerto_settings"
+  settings: "huerto_settings",
+  customCatalog: "huerto_custom_catalog"
 };
 
 function uid() {
@@ -108,11 +109,37 @@ const Store = {
   },
 
   getSettings() {
-    const defaults = { lat: -22.34, lon: -60.03, lugar: "Filadelfia, Chaco, Paraguay", umbralHelada: 3, umbralViento: 40 };
+    const defaults = { lat: -22.34, lon: -60.03, lugar: "Filadelfia, Chaco, Paraguay", umbralHelada: 3, umbralViento: 40, diasAviso: 3 };
     const saved = loadJSON(STORAGE_KEYS.settings, {});
     return { ...defaults, ...saved };
   },
   saveSettings(s) { saveJSON(STORAGE_KEYS.settings, s); },
+
+  // --- Catálogo personalizado (plantas agregadas por el usuario) ---
+  getCustomCatalog() { return loadJSON(STORAGE_KEYS.customCatalog, []); },
+  saveCustomCatalog(list) { saveJSON(STORAGE_KEYS.customCatalog, list); },
+
+  addCustomCatalogEntry(entry) {
+    const list = this.getCustomCatalog();
+    const item = { ...entry, id: entry.id || ("custom_" + uid()), personalizada: true };
+    list.push(item);
+    this.saveCustomCatalog(list);
+    return item;
+  },
+
+  updateCustomCatalogEntry(id, changes) {
+    const list = this.getCustomCatalog();
+    const idx = list.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], ...changes };
+    this.saveCustomCatalog(list);
+    return list[idx];
+  },
+
+  deleteCustomCatalogEntry(id) {
+    const list = this.getCustomCatalog().filter(p => p.id !== id);
+    this.saveCustomCatalog(list);
+  },
 
   exportAll() {
     return {
@@ -120,7 +147,8 @@ const Store = {
       exportadoEn: new Date().toISOString(),
       beds: this.getBeds(),
       plants: this.getPlants(),
-      settings: this.getSettings()
+      settings: this.getSettings(),
+      customCatalog: this.getCustomCatalog()
     };
   },
 
@@ -129,6 +157,7 @@ const Store = {
     if (Array.isArray(data.beds)) this.saveBeds(data.beds);
     if (Array.isArray(data.plants)) this.savePlants(data.plants);
     if (data.settings) this.saveSettings(data.settings);
+    if (Array.isArray(data.customCatalog)) this.saveCustomCatalog(data.customCatalog);
   }
 };
 
