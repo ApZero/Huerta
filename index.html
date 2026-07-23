@@ -52,123 +52,6 @@
   <div id="plants-list"></div>
 </section>
 
-<!-- CATÁLOGO -->
-<section class="view" id="view-catalogo">
-  <div class="seg-control" id="catalogo-tab-control" style="margin-bottom:12px;">
-    <button type="button" data-val="plantas" class="active">📖 Plantas</button>
-    <button type="button" data-val="calendario">📅 Calendario</button>
-  </div>
-
-  <div id="catalogo-plantas-tab">
-    <div class="search-box"><input type="text" id="catalogo-search" placeholder="Buscar en el catálogo..."></div>
-    <div class="filter-chips" id="catalogo-filters"></div>
-    <div id="catalogo-list"></div>
-  </div>
-
-  <div id="catalogo-calendario-tab" style="display:none;">
-    <div class="section-title">Elegí un mes</div>
-    <div class="filter-chips" id="calendario-meses"></div>
-    <div id="calendario-list"></div>
-  </div>
-</section>
-
-<!-- Sheet: detalle de especie del catálogo -->
-<div class="sheet" id="sheet-catalog-detail">
-  <div class="sheet-handle"></div>
-  <div class="sheet-header"><h2 style="font-size:1.05rem;" id="catalog-detail-title">Especie</h2><button class="sheet-close" data-close>✕</button></div>
-  <div id="catalog-detail-body"></div>
-</div>
-
-<!-- Sheet: agregar/editar especie del catálogo -->
-<div class="sheet" id="sheet-catalog-form">
-  <div class="sheet-handle"></div>
-  <div class="sheet-header"><h2 style="font-size:1.05rem;" id="catalog-form-title">Nueva especie</h2><button class="sheet-close" data-close>✕</button></div>
-
-  <div class="seg-control" id="catalog-form-mode-control" style="margin-bottom:14px;">
-    <button type="button" data-val="manual" class="active">Manual</button>
-    <button type="button" data-val="openfarm">Buscar en OpenFarm</button>
-  </div>
-
-  <div id="catalog-openfarm-mode" style="display:none;">
-    <div class="field">
-      <label>Buscar especie (en inglés suele dar mejores resultados)</label>
-      <input type="text" id="openfarm-search" placeholder="Ej: tomato, mint, dahlia...">
-    </div>
-    <button class="btn btn-secondary btn-block" id="btn-openfarm-search" style="margin-bottom:10px;">Buscar</button>
-    <div id="openfarm-results"></div>
-    <div style="font-size:0.76rem; color:var(--tierra-soft); margin-top:8px;">
-      Los datos vienen de <a href="https://openfarm.cc" target="_blank" rel="noopener">OpenFarm</a>, una base abierta y colaborativa. Suelen venir en inglés e incompletos — revisá y completá los campos antes de guardar.
-    </div>
-  </div>
-
-  <div id="catalog-manual-mode">
-    <div class="field">
-      <label>Nombre</label>
-      <input type="text" id="cat-nombre" placeholder="Ej: Orégano">
-    </div>
-    <div class="field">
-      <label>Categoría</label>
-      <select id="cat-categoria">
-        <option value="hortaliza">Hortaliza</option>
-        <option value="fruta">Fruta</option>
-        <option value="hierba">Hierba</option>
-        <option value="flor">Flor</option>
-      </select>
-    </div>
-    <div class="field-row">
-      <div class="field">
-        <label>Sol</label>
-        <select id="cat-sol">
-          <option value="pleno">Sol pleno</option>
-          <option value="semisombra">Semisombra</option>
-          <option value="sombra">Sombra</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Nivel de riego</label>
-        <select id="cat-agua">
-          <option value="bajo">Bajo</option>
-          <option value="medio">Medio</option>
-          <option value="alto">Alto</option>
-        </select>
-      </div>
-    </div>
-    <div class="field">
-      <label>Riego (detalle)</label>
-      <textarea id="cat-riego" placeholder="Ej: Riego regular, 2-3 veces por semana..."></textarea>
-    </div>
-    <div class="field">
-      <label>Fertilizante</label>
-      <textarea id="cat-fertilizante" placeholder="Ej: Compost al plantar, refuerzo mensual..."></textarea>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Espaciado</label><input type="text" id="cat-espaciado" placeholder="Ej: 30-40 cm"></div>
-      <div class="field"><label>Días de germinación</label><input type="text" id="cat-germinacion" placeholder="Ej: 7-14 días"></div>
-    </div>
-    <div class="field">
-      <label>Días a cosecha</label><input type="text" id="cat-cosecha" placeholder="Ej: 60-70 días">
-    </div>
-    <div class="field">
-      <label>Meses de siembra recomendados (Chaco)</label>
-      <div class="filter-chips" id="cat-meses-siembra"></div>
-    </div>
-    <div class="field">
-      <label>¿Sensible a heladas?</label>
-      <div class="seg-control" id="cat-helada-control">
-        <button type="button" data-val="no" class="active">No</button>
-        <button type="button" data-val="si">Sí</button>
-      </div>
-    </div>
-    <div class="field">
-      <label>Notas</label>
-      <textarea id="cat-notas" placeholder="Cualquier otro dato útil..."></textarea>
-    </div>
-    <button class="btn btn-primary btn-block" id="btn-save-catalog">Guardar especie</button>
-    <button class="btn btn-danger btn-block" id="btn-delete-catalog" style="display:none; margin-top:8px;">Eliminar del catálogo</button>
-  </div>
-</div>
-
-
 <!-- CLIMA -->
 <section class="view" id="view-clima">
   <div id="clima-content"></div>
@@ -207,10 +90,6 @@
       <label>Umbral de viento fuerte (ráfagas, km/h)</label>
       <input type="number" id="settings-umbral-viento">
     </div>
-    <div class="field">
-      <label>Avisar con cuántos días de anticipación</label>
-      <input type="number" id="settings-dias-aviso" min="1" max="7">
-    </div>
     <button class="btn btn-primary btn-block" id="btn-save-settings">Guardar ubicación</button>
   </div>
 
@@ -224,7 +103,6 @@
   <button class="nav-btn active" data-view="hoy"><span class="icon">🌤️</span>Hoy</button>
   <button class="nav-btn" data-view="bancales"><span class="icon">🟫</span>Bancales</button>
   <button class="nav-btn" data-view="plantas"><span class="icon">🌿</span>Plantas</button>
-  <button class="nav-btn" data-view="catalogo"><span class="icon">📖</span>Catálogo</button>
   <button class="nav-btn" data-view="clima"><span class="icon">☁️</span>Clima</button>
   <button class="nav-btn" data-view="ajustes"><span class="icon">⚙️</span>Ajustes</button>
 </nav>
@@ -237,8 +115,7 @@
   <div class="sheet-handle"></div>
   <div class="sheet-header"><h2 style="font-size:1.05rem;">Agregar</h2><button class="sheet-close" data-close>✕</button></div>
   <button class="btn btn-secondary btn-block" id="choice-bed" style="margin-bottom:10px;">🟫 Nuevo bancal / cama de cultivo</button>
-  <button class="btn btn-secondary btn-block" id="choice-plant" style="margin-bottom:10px;">🌿 Nueva planta</button>
-  <button class="btn btn-secondary btn-block" id="choice-catalog">📖 Nueva especie en el catálogo</button>
+  <button class="btn btn-secondary btn-block" id="choice-plant">🌿 Nueva planta</button>
 </div>
 
 <!-- Sheet: nuevo bancal -->
@@ -315,28 +192,22 @@
       <div class="field"><label>Siembra</label><input type="date" id="fecha-siembra"></div>
       <div class="field"><label>Primer brote</label><input type="date" id="fecha-brote"></div>
     </div>
-    <div class="field" id="field-flor-semilla">
-      <label>Primera flor</label><input type="date" id="fecha-flor">
-    </div>
-    <div class="field" id="field-fruto-semilla">
-      <label>Primer fruto</label><input type="date" id="fecha-fruto">
+    <div class="field-row">
+      <div class="field"><label>Primera flor</label><input type="date" id="fecha-flor"></div>
+      <div class="field"><label>Primer fruto</label><input type="date" id="fecha-fruto"></div>
     </div>
     <div class="field">
       <label>Cosecha</label><input type="date" id="fecha-cosecha">
     </div>
   </div>
   <div id="plant-dates-plantin" style="display:none;">
-    <div class="field">
-      <label>Fecha de compra / trasplante</label><input type="date" id="fecha-trasplante-inicial">
+    <div class="field-row">
+      <div class="field"><label>Fecha de compra / trasplante</label><input type="date" id="fecha-trasplante-inicial"></div>
+      <div class="field"><label>Primera flor</label><input type="date" id="fecha-flor-2"></div>
     </div>
-    <div class="field" id="field-flor-plantin">
-      <label>Primera flor</label><input type="date" id="fecha-flor-2">
-    </div>
-    <div class="field" id="field-fruto-plantin">
-      <label>Primer fruto</label><input type="date" id="fecha-fruto-2">
-    </div>
-    <div class="field">
-      <label>Cosecha</label><input type="date" id="fecha-cosecha-2">
+    <div class="field-row">
+      <div class="field"><label>Primer fruto</label><input type="date" id="fecha-fruto-2"></div>
+      <div class="field"><label>Cosecha</label><input type="date" id="fecha-cosecha-2"></div>
     </div>
   </div>
 
