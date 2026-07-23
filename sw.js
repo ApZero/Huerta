@@ -1,10 +1,11 @@
-const CACHE_NAME = "huerto-v5";
+const CACHE_NAME = "huerto-v7";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./css/style.css",
   "./js/data.js",
+  "./js/photostore.js",
   "./js/storage.js",
   "./js/weather.js",
   "./js/render.js",

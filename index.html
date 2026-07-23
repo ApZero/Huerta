@@ -30,6 +30,7 @@
 
   <div class="section-title">Resumen</div>
   <div id="hoy-stats"></div>
+  <div id="hoy-filter-row" style="display:none; margin-top:8px;"></div>
 
   <div class="section-title">Próximo a suceder</div>
   <div id="hoy-upcoming"></div>
@@ -51,6 +52,124 @@
   <div class="filter-chips" id="plant-filters"></div>
   <div id="plants-list"></div>
 </section>
+
+<!-- CATÁLOGO -->
+<section class="view" id="view-catalogo">
+  <div class="seg-control" id="catalogo-tab-control" style="margin-bottom:12px;">
+    <button type="button" data-val="plantas" class="active">📖 Plantas</button>
+    <button type="button" data-val="calendario">📅 Calendario</button>
+  </div>
+
+  <div id="catalogo-plantas-tab">
+    <div class="search-box"><input type="text" id="catalogo-search" placeholder="Buscar en el catálogo..."></div>
+    <div class="filter-chips" id="catalogo-filters"></div>
+    <div id="catalogo-list"></div>
+  </div>
+
+  <div id="catalogo-calendario-tab" style="display:none;">
+    <div class="section-title">Elegí un mes</div>
+    <div class="filter-chips" id="calendario-meses"></div>
+    <div id="calendario-list"></div>
+  </div>
+</section>
+
+<!-- Sheet: detalle de especie del catálogo -->
+<div class="sheet" id="sheet-catalog-detail">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;" id="catalog-detail-title">Especie</h2><button class="sheet-close" data-close>✕</button></div>
+  <div id="catalog-detail-body"></div>
+</div>
+
+<!-- Sheet: agregar/editar especie del catálogo -->
+<div class="sheet" id="sheet-catalog-form">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;" id="catalog-form-title">Nueva especie</h2><button class="sheet-close" data-close>✕</button></div>
+  <div id="catalog-form-builtin-note" style="display:none; font-size:0.78rem; color:var(--tierra-soft); margin-bottom:10px;">
+    Esta especie viene incluida en la app. Los cambios que hagas quedan guardados en tu dispositivo, y podés volver a los valores originales cuando quieras.
+  </div>
+
+  <div class="field">
+    <label>Nombre</label>
+    <input type="text" id="cat-nombre" placeholder="Ej: Orégano">
+  </div>
+  <div class="field">
+    <label>Ícono</label>
+    <input type="text" id="cat-icono" placeholder="Ej: 🌿" maxlength="4">
+    <div class="filter-chips" id="cat-icono-sugeridos" style="margin-top:8px;"></div>
+  </div>
+  <div class="field">
+    <label>Categoría</label>
+    <select id="cat-categoria">
+      <option value="hortaliza">Hortaliza</option>
+      <option value="fruta">Fruta</option>
+      <option value="hierba">Hierba</option>
+      <option value="flor">Flor</option>
+    </select>
+  </div>
+  <div class="field-row">
+    <div class="field">
+      <label>Sol</label>
+      <select id="cat-sol">
+        <option value="pleno">Sol pleno</option>
+        <option value="semisombra">Semisombra</option>
+        <option value="sombra">Sombra</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Nivel de riego</label>
+      <select id="cat-agua">
+        <option value="bajo">Bajo</option>
+        <option value="medio">Medio</option>
+        <option value="alto">Alto</option>
+      </select>
+    </div>
+  </div>
+  <div class="field">
+    <label>Riego (detalle)</label>
+    <textarea id="cat-riego" placeholder="Ej: Riego regular, 2-3 veces por semana..."></textarea>
+  </div>
+  <div class="field">
+    <label>Fertilizante</label>
+    <textarea id="cat-fertilizante" placeholder="Ej: Compost al plantar, refuerzo mensual..."></textarea>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Espaciado</label><input type="text" id="cat-espaciado" placeholder="Ej: 30-40 cm"></div>
+    <div class="field"><label>Días de germinación</label><input type="text" id="cat-germinacion" placeholder="Ej: 7-14 días"></div>
+  </div>
+  <div class="field">
+    <label>Días a cosecha</label><input type="text" id="cat-cosecha" placeholder="Ej: 60-70 días">
+  </div>
+  <div class="field">
+    <label>Meses de siembra recomendados (Chaco)</label>
+    <div class="filter-chips" id="cat-meses-siembra"></div>
+  </div>
+  <div class="field">
+    <label>¿Sensible a heladas?</label>
+    <div class="seg-control" id="cat-helada-control">
+      <button type="button" data-val="no" class="active">No</button>
+      <button type="button" data-val="si">Sí</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>¿Es perenne (dura varios años) o anual?</label>
+    <div class="seg-control" id="cat-perenne-control">
+      <button type="button" data-val="no" class="active">Anual</button>
+      <button type="button" data-val="si">Perenne</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Después de la flor/fruto — manejo (¿podar, replantar, cuántos años dura, cosecha siguiente...?)</label>
+    <textarea id="cat-manejo-posterior" placeholder="Ej: Es perenne — podar tras la cosecha y vuelve a dar el año siguiente. Dividir la planta cada 3 años."></textarea>
+  </div>
+  <div class="field">
+    <label>Notas</label>
+    <textarea id="cat-notas" placeholder="Cualquier otro dato útil..."></textarea>
+  </div>
+  <button class="btn btn-primary btn-block" id="btn-save-catalog">Guardar especie</button>
+  <button class="btn btn-secondary btn-block" id="btn-reset-catalog" style="display:none; margin-top:8px;">Restablecer a valores originales</button>
+  <button class="btn btn-danger btn-block" id="btn-delete-catalog" style="display:none; margin-top:8px;">Eliminar del catálogo</button>
+</div>
+
 
 <!-- CLIMA -->
 <section class="view" id="view-clima">
@@ -90,6 +209,10 @@
       <label>Umbral de viento fuerte (ráfagas, km/h)</label>
       <input type="number" id="settings-umbral-viento">
     </div>
+    <div class="field">
+      <label>Avisar con cuántos días de anticipación</label>
+      <input type="number" id="settings-dias-aviso" min="1" max="7">
+    </div>
     <button class="btn btn-primary btn-block" id="btn-save-settings">Guardar ubicación</button>
   </div>
 
@@ -103,6 +226,7 @@
   <button class="nav-btn active" data-view="hoy"><span class="icon">🌤️</span>Hoy</button>
   <button class="nav-btn" data-view="bancales"><span class="icon">🟫</span>Bancales</button>
   <button class="nav-btn" data-view="plantas"><span class="icon">🌿</span>Plantas</button>
+  <button class="nav-btn" data-view="catalogo"><span class="icon">📖</span>Catálogo</button>
   <button class="nav-btn" data-view="clima"><span class="icon">☁️</span>Clima</button>
   <button class="nav-btn" data-view="ajustes"><span class="icon">⚙️</span>Ajustes</button>
 </nav>
@@ -115,7 +239,8 @@
   <div class="sheet-handle"></div>
   <div class="sheet-header"><h2 style="font-size:1.05rem;">Agregar</h2><button class="sheet-close" data-close>✕</button></div>
   <button class="btn btn-secondary btn-block" id="choice-bed" style="margin-bottom:10px;">🟫 Nuevo bancal / cama de cultivo</button>
-  <button class="btn btn-secondary btn-block" id="choice-plant">🌿 Nueva planta</button>
+  <button class="btn btn-secondary btn-block" id="choice-plant" style="margin-bottom:10px;">🌿 Nueva planta</button>
+  <button class="btn btn-secondary btn-block" id="choice-catalog">📖 Nueva especie en el catálogo</button>
 </div>
 
 <!-- Sheet: nuevo bancal -->
@@ -147,9 +272,22 @@
   <div class="sheet-header"><h2 style="font-size:1.05rem;" id="bed-detail-title">Bancal</h2><button class="sheet-close" data-close>✕</button></div>
   <div id="bed-detail-meta" style="margin-bottom:10px;"></div>
   <button class="btn btn-secondary" id="btn-edit-bed" style="margin-bottom:14px;">Editar bancal</button>
+
+  <div class="section-title">Fotos</div>
+  <div id="bed-photos-grid" class="photo-grid"></div>
+  <button class="btn btn-secondary btn-block" id="btn-add-bed-photo" style="margin-bottom:14px;">📷 Agregar foto</button>
+  <input type="file" id="bed-photo-input" accept="image/*" capture="environment" style="display:none;">
+
   <div class="section-title">Plantas en este bancal</div>
   <div id="bed-detail-plants"></div>
   <button class="btn btn-primary btn-block" id="btn-add-plant-to-bed" style="margin-top:12px;">+ Agregar planta aquí</button>
+</div>
+
+<!-- Sheet: ver foto de bancal en grande -->
+<div class="sheet" id="sheet-photo-view">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;">Foto</h2><button class="sheet-close" data-close>✕</button></div>
+  <div id="photo-view-body"></div>
 </div>
 
 <!-- Sheet: nueva planta / editar planta -->
@@ -192,22 +330,28 @@
       <div class="field"><label>Siembra</label><input type="date" id="fecha-siembra"></div>
       <div class="field"><label>Primer brote</label><input type="date" id="fecha-brote"></div>
     </div>
-    <div class="field-row">
-      <div class="field"><label>Primera flor</label><input type="date" id="fecha-flor"></div>
-      <div class="field"><label>Primer fruto</label><input type="date" id="fecha-fruto"></div>
+    <div class="field" id="field-flor-semilla">
+      <label>Primera flor</label><input type="date" id="fecha-flor">
+    </div>
+    <div class="field" id="field-fruto-semilla">
+      <label>Primer fruto</label><input type="date" id="fecha-fruto">
     </div>
     <div class="field">
       <label>Cosecha</label><input type="date" id="fecha-cosecha">
     </div>
   </div>
   <div id="plant-dates-plantin" style="display:none;">
-    <div class="field-row">
-      <div class="field"><label>Fecha de compra / trasplante</label><input type="date" id="fecha-trasplante-inicial"></div>
-      <div class="field"><label>Primera flor</label><input type="date" id="fecha-flor-2"></div>
+    <div class="field">
+      <label>Fecha de compra / trasplante</label><input type="date" id="fecha-trasplante-inicial">
     </div>
-    <div class="field-row">
-      <div class="field"><label>Primer fruto</label><input type="date" id="fecha-fruto-2"></div>
-      <div class="field"><label>Cosecha</label><input type="date" id="fecha-cosecha-2"></div>
+    <div class="field" id="field-flor-plantin">
+      <label>Primera flor</label><input type="date" id="fecha-flor-2">
+    </div>
+    <div class="field" id="field-fruto-plantin">
+      <label>Primer fruto</label><input type="date" id="fecha-fruto-2">
+    </div>
+    <div class="field">
+      <label>Cosecha</label><input type="date" id="fecha-cosecha-2">
     </div>
   </div>
 
@@ -225,6 +369,38 @@
   <div class="sheet-handle"></div>
   <div class="sheet-header"><h2 style="font-size:1.05rem;" id="plant-detail-title">Planta</h2><button class="sheet-close" data-close>✕</button></div>
   <div id="plant-detail-body"></div>
+</div>
+
+<!-- Sheet: nueva entrada de bitácora (foto + nota) -->
+<div class="sheet" id="sheet-bitacora-form">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;">Agregar a la bitácora</h2><button class="sheet-close" data-close>✕</button></div>
+  <div class="field">
+    <label>Foto (opcional)</label>
+    <div id="bitacora-photo-preview"></div>
+    <button class="btn btn-secondary btn-block" id="btn-pick-bitacora-photo" style="margin-top:6px;">📷 Elegir foto</button>
+    <input type="file" id="bitacora-photo-input" accept="image/*" capture="environment" style="display:none;">
+  </div>
+  <div class="field">
+    <label>Fecha</label>
+    <input type="date" id="bitacora-fecha">
+  </div>
+  <div class="field">
+    <label>Etapa (opcional)</label>
+    <select id="bitacora-etapa">
+      <option value="">General</option>
+      <option value="siembra">Siembra / trasplante</option>
+      <option value="brote">Brote</option>
+      <option value="primeraFlor">Flor</option>
+      <option value="primerFruto">Fruto</option>
+      <option value="cosecha">Cosecha</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Nota</label>
+    <textarea id="bitacora-nota" placeholder="Cómo se ve, qué le hiciste, algo para recordar la próxima vez..."></textarea>
+  </div>
+  <button class="btn btn-primary btn-block" id="btn-save-bitacora">Guardar</button>
 </div>
 
 <!-- Sheet: mover / trasplantar planta -->
@@ -250,6 +426,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="js/data.js"></script>
+<script src="js/photostore.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/weather.js"></script>
 <script src="js/render.js"></script>
