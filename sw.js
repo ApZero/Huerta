@@ -1,4 +1,4 @@
-const CACHE_NAME = "huerto-v7";
+const CACHE_NAME = "huerto-v8";
 const ASSETS = [
   "./",
   "./index.html",
@@ -36,16 +36,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (event.request.method !== "GET" || !url.protocol.startsWith("http")) return;
+  // Red primero: si hay conexión, siempre trae la versión más nueva (y la deja en caché
+  // para cuando no haya internet). Así una actualización de la app se ve apenas se abre,
+  // sin tener que refrescar a mano.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const networkFetch = fetch(event.request).then((response) => {
-        if (response && response.ok && url.origin === self.location.origin) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
-        return response;
-      }).catch(() => cached);
-      return cached || networkFetch;
-    })
+    fetch(event.request).then((response) => {
+      if (response && response.ok && url.origin === self.location.origin) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+      }
+      return response;
+    }).catch(() => caches.match(event.request))
   );
 });
