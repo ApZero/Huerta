@@ -266,6 +266,10 @@ h1, h2, h3, .display {
   font-size: 0.76rem; font-weight: 600; background: #fff; border: 1px solid var(--line);
   border-radius: 999px; padding: 6px 12px; color: var(--tierra);
 }
+.bed-pill {
+  font-size: 0.68rem; font-weight: 600; background: var(--cream-2); color: var(--tierra-soft);
+  padding: 3px 10px; border-radius: 999px; white-space: nowrap; flex-shrink: 0; margin-left: 8px;
+}
 
 /* Toast */
 .toast {
