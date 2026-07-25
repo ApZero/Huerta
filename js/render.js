@@ -226,6 +226,7 @@ let hoyFilterValue = null;
 
 function renderHoyFilterRow(beds, plants) {
   const container = document.getElementById("hoy-filter-row");
+  if (!container) return;
   if (!hoyFilterType) { container.style.display = "none"; container.innerHTML = ""; return; }
   container.style.display = "block";
   let chips = [];
@@ -286,12 +287,16 @@ async function renderHoy() {
       ? `${est.label} ${est.genero} desde el ${fmtSimpleDate(est.date)}`
       : `${est.label} ${est.genero}: ${fmtSimpleDate(est.date)}`;
     const bed = p.bedId ? bedNameById[p.bedId] : null;
-    const bedTag = bed ? ` <span style="color:var(--tierra-soft); font-weight:400;">· ${bedTypeIcon(bed.tipo)} ${escapeHTML(bed.nombre)}</span>` : "";
-    return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer;"><div class="card-row">
-      <div><div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}${bedTag}</div>
-      <div class="plant-sub">${texto}</div></div>
-      ${vencida ? `<span style="font-size:1rem;">⏰</span>` : ""}
-    </div></div>`;
+    return `<div class="card plant-card" data-plant-id="${p.id}" style="padding:12px 14px; cursor:pointer; display:block;">
+      <div class="card-row">
+        <div class="plant-name" style="font-size:0.88rem;">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</div>
+        ${bed ? `<span class="bed-pill">${escapeHTML(bed.nombre)}</span>` : ""}
+      </div>
+      <div class="card-row" style="margin-top:3px;">
+        <div class="plant-sub">${texto}</div>
+        ${vencida ? `<span style="font-size:1rem;">⏰</span>` : ""}
+      </div>
+    </div>`;
   }).join("") || `<div class="card" style="font-size:0.86rem; color:var(--tierra-soft);">Nada pendiente por ahora. Registrá las etapas de tus plantas en la pestaña Plantas.</div>`;
   document.getElementById("hoy-upcoming").innerHTML = upcomingHTML;
 
