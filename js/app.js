@@ -18,7 +18,9 @@ let state = {
 };
 
 // ---------- Navegación entre vistas ----------
+let currentView = "hoy";
 function switchView(viewName) {
+  currentView = viewName;
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.getElementById(`view-${viewName}`).classList.add("active");
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.view === viewName));
@@ -48,7 +50,13 @@ backdrop.addEventListener("click", closeAllSheets);
 document.querySelectorAll("[data-close]").forEach(btn => btn.addEventListener("click", closeAllSheets));
 
 // ---------- FAB ----------
-document.getElementById("fab-add").addEventListener("click", () => openSheet("sheet-fab-choice"));
+document.getElementById("fab-add").addEventListener("click", () => {
+  if (currentView === "cosecha") {
+    openQuickCosechaForm();
+  } else {
+    openSheet("sheet-fab-choice");
+  }
+});
 document.getElementById("choice-bed").addEventListener("click", () => {
   closeAllSheets();
   openBedForm(null);
@@ -607,6 +615,51 @@ document.getElementById("hoy-filter-row").addEventListener("click", (e) => {
 });
 
 // ---------- Cosecha (rendimiento) ----------
+document.getElementById("btn-open-cosecha-quick").addEventListener("click", openQuickCosechaForm);
+
+function openQuickCosechaForm() {
+  const beds = Store.getBeds();
+  const bedSelect = document.getElementById("cosecha-quick-bed");
+  bedSelect.innerHTML = beds.map(b => `<option value="${b.id}">${bedTypeIcon(b.tipo)} ${escapeHTML(b.nombre)}</option>`).join("")
+    || `<option value="">Sin bancales — creá uno primero</option>`;
+  populateQuickPlantSelect(bedSelect.value);
+  document.getElementById("cosecha-quick-gramos").value = "";
+  document.getElementById("cosecha-quick-frutos").value = "";
+  document.getElementById("cosecha-quick-fecha").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("cosecha-quick-nota").value = "";
+  openSheet("sheet-cosecha-quick");
+}
+
+function populateQuickPlantSelect(bedId) {
+  const plants = bedId ? Store.getPlantsByBed(bedId) : [];
+  const select = document.getElementById("cosecha-quick-plant");
+  select.innerHTML = plants.map(p => `<option value="${p.id}">${plantIcon(p)} ${escapeHTML(plantDisplayName(p))}</option>`).join("")
+    || `<option value="">Sin plantas activas en este bancal</option>`;
+}
+document.getElementById("cosecha-quick-bed").addEventListener("change", (e) => populateQuickPlantSelect(e.target.value));
+
+function saveQuickCosecha(keepOpen) {
+  const plantId = document.getElementById("cosecha-quick-plant").value;
+  if (!plantId) { toast("Elegí una planta"); return; }
+  const gramos = parseFloat(document.getElementById("cosecha-quick-gramos").value);
+  if (!gramos || gramos <= 0) { toast("Poné los gramos cosechados"); return; }
+  const cantidadFrutos = parseInt(document.getElementById("cosecha-quick-frutos").value, 10) || null;
+  const fecha = document.getElementById("cosecha-quick-fecha").value || new Date().toISOString().slice(0, 10);
+  const nota = document.getElementById("cosecha-quick-nota").value.trim();
+  Store.addBitacoraEntry(plantId, { etapa: "cosecha", gramos, cantidadFrutos, fecha, nota });
+  toast("Cosecha registrada");
+  if (keepOpen) {
+    document.getElementById("cosecha-quick-gramos").value = "";
+    document.getElementById("cosecha-quick-frutos").value = "";
+    document.getElementById("cosecha-quick-nota").value = "";
+  } else {
+    closeAllSheets();
+  }
+  renderCosechaView();
+}
+document.getElementById("btn-save-cosecha-quick").addEventListener("click", () => saveQuickCosecha(false));
+document.getElementById("btn-save-cosecha-quick-otra").addEventListener("click", () => saveQuickCosecha(true));
+
 document.getElementById("cosecha-periodo-control").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
