@@ -84,10 +84,10 @@ h1, h2, h3, .display {
 }
 .nav-btn {
   flex: 1; background: none; border: none; display: flex; flex-direction: column;
-  align-items: center; gap: 3px; padding: 6px 2px; color: var(--tierra-soft);
-  font-family: inherit; font-size: 0.65rem; cursor: pointer;
+  align-items: center; gap: 2px; padding: 6px 1px; color: var(--tierra-soft);
+  font-family: inherit; font-size: 0.6rem; cursor: pointer;
 }
-.nav-btn .icon { font-size: 1.25rem; line-height: 1; }
+.nav-btn .icon { font-size: 1.12rem; line-height: 1; }
 .nav-btn.active { color: var(--terracota-dark); }
 .nav-btn.active .icon { transform: scale(1.08); }
 
