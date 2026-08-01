@@ -1,4 +1,4 @@
-const CACHE_NAME = "huerto-v9";
+const CACHE_NAME = "huerto-v11";
 const ASSETS = [
   "./",
   "./index.html",

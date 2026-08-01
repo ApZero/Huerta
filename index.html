@@ -173,6 +173,7 @@
 
 <!-- COSECHA -->
 <section class="view" id="view-cosecha">
+  <button class="btn btn-primary btn-block" id="btn-open-cosecha-quick" style="margin-bottom:14px;">+ Registrar cosecha</button>
   <div class="seg-control" id="cosecha-periodo-control" style="margin-bottom:10px;">
     <button type="button" data-val="mes" class="active">Este mes</button>
     <button type="button" data-val="año">Este año</button>
@@ -259,6 +260,34 @@
   <button class="btn btn-secondary btn-block" id="choice-bed" style="margin-bottom:10px;">🟫 Nuevo bancal / cama de cultivo</button>
   <button class="btn btn-secondary btn-block" id="choice-plant" style="margin-bottom:10px;">🌿 Nueva planta</button>
   <button class="btn btn-secondary btn-block" id="choice-catalog">📖 Nueva especie en el catálogo</button>
+</div>
+
+<!-- Sheet: registrar cosecha (acceso rápido desde la pestaña Cosecha) -->
+<div class="sheet" id="sheet-cosecha-quick">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;">Registrar cosecha</h2><button class="sheet-close" data-close>✕</button></div>
+  <div class="field">
+    <label>Bancal</label>
+    <select id="cosecha-quick-bed"></select>
+  </div>
+  <div class="field">
+    <label>Planta</label>
+    <select id="cosecha-quick-plant"></select>
+  </div>
+  <div class="field-row">
+    <div class="field"><label>Gramos</label><input type="number" id="cosecha-quick-gramos" min="0" placeholder="Ej: 100"></div>
+    <div class="field"><label>Cantidad de frutos (opcional)</label><input type="number" id="cosecha-quick-frutos" min="0" placeholder="Ej: 3"></div>
+  </div>
+  <div class="field">
+    <label>Fecha</label>
+    <input type="date" id="cosecha-quick-fecha">
+  </div>
+  <div class="field">
+    <label>Nota (opcional)</label>
+    <input type="text" id="cosecha-quick-nota" placeholder="Ej: primera tanda del año">
+  </div>
+  <button class="btn btn-primary btn-block" id="btn-save-cosecha-quick">Guardar</button>
+  <button class="btn btn-secondary btn-block" id="btn-save-cosecha-quick-otra" style="margin-top:8px;">Guardar y agregar otra</button>
 </div>
 
 <!-- Sheet: nuevo bancal -->
