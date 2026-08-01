@@ -171,6 +171,23 @@
 </div>
 
 
+<!-- COSECHA -->
+<section class="view" id="view-cosecha">
+  <div class="seg-control" id="cosecha-periodo-control" style="margin-bottom:10px;">
+    <button type="button" data-val="mes" class="active">Este mes</button>
+    <button type="button" data-val="año">Este año</button>
+    <button type="button" data-val="todo">Todo</button>
+  </div>
+  <div class="seg-control" id="cosecha-agrupar-control" style="margin-bottom:14px;">
+    <button type="button" data-val="bancal" class="active">Por bancal</button>
+    <button type="button" data-val="especie">Por especie</button>
+  </div>
+  <div class="section-title">Resumen</div>
+  <div id="cosecha-resumen"></div>
+  <div class="section-title">Detalle</div>
+  <div id="cosecha-detalle"></div>
+</section>
+
 <!-- CLIMA -->
 <section class="view" id="view-clima">
   <div id="clima-content"></div>
@@ -227,6 +244,7 @@
   <button class="nav-btn" data-view="bancales"><span class="icon">🟫</span>Bancales</button>
   <button class="nav-btn" data-view="plantas"><span class="icon">🌿</span>Plantas</button>
   <button class="nav-btn" data-view="catalogo"><span class="icon">📖</span>Catálogo</button>
+  <button class="nav-btn" data-view="cosecha"><span class="icon">🧺</span>Cosecha</button>
   <button class="nav-btn" data-view="clima"><span class="icon">☁️</span>Clima</button>
   <button class="nav-btn" data-view="ajustes"><span class="icon">⚙️</span>Ajustes</button>
 </nav>
@@ -309,6 +327,10 @@
   <div class="field">
     <label>Variedad (opcional)</label>
     <input type="text" id="plant-variedad" placeholder="Ej: Cherry, Perita, Criolla...">
+  </div>
+  <div class="field">
+    <label>Cantidad de plantas (para calcular rendimiento por planta)</label>
+    <input type="number" id="plant-cantidad" min="1" step="1" value="1">
   </div>
 
   <div class="field">
@@ -396,6 +418,12 @@
       <option value="cosecha">Cosecha</option>
     </select>
   </div>
+  <div id="bitacora-cosecha-fields" style="display:none;">
+    <div class="field-row">
+      <div class="field"><label>Gramos cosechados</label><input type="number" id="bitacora-gramos" min="0" placeholder="Ej: 100"></div>
+      <div class="field"><label>Cantidad de frutos (opcional)</label><input type="number" id="bitacora-frutos" min="0" placeholder="Ej: 3"></div>
+    </div>
+  </div>
   <div class="field">
     <label>Nota</label>
     <textarea id="bitacora-nota" placeholder="Cómo se ve, qué le hiciste, algo para recordar la próxima vez..."></textarea>
@@ -404,6 +432,25 @@
 </div>
 
 <!-- Sheet: mover / trasplantar planta -->
+<!-- Sheet: registrar cambio de cantidad de plantas -->
+<div class="sheet" id="sheet-cantidad-form">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header"><h2 style="font-size:1.05rem;">Cambio de cantidad</h2><button class="sheet-close" data-close>✕</button></div>
+  <div class="field">
+    <label>Nueva cantidad de plantas</label>
+    <input type="number" id="cantidad-nueva" min="0" step="1">
+  </div>
+  <div class="field">
+    <label>Fecha</label>
+    <input type="date" id="cantidad-fecha">
+  </div>
+  <div class="field">
+    <label>Nota (opcional)</label>
+    <input type="text" id="cantidad-nota" placeholder="Ej: se secó una planta por exceso de sol">
+  </div>
+  <button class="btn btn-primary btn-block" id="btn-save-cantidad">Guardar</button>
+</div>
+
 <div class="sheet" id="sheet-move-plant">
   <div class="sheet-handle"></div>
   <div class="sheet-header"><h2 style="font-size:1.05rem;">Mover / trasplantar</h2><button class="sheet-close" data-close>✕</button></div>
