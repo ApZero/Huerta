@@ -26,6 +26,7 @@ function switchView(viewName) {
   if (viewName === "bancales") renderBeds();
   if (viewName === "plantas") renderPlants();
   if (viewName === "catalogo") renderCatalogoTab();
+  if (viewName === "cosecha") renderCosechaView();
   if (viewName === "clima") renderClima();
 }
 
@@ -210,6 +211,7 @@ function openPlantForm(plantId) {
     document.getElementById("plant-form-title").textContent = "Editar planta";
     document.getElementById("plant-nombre-custom").value = plant.nombrePersonalizado || "";
     document.getElementById("plant-variedad").value = plant.variedad || "";
+    document.getElementById("plant-cantidad").value = plant.cantidad || 1;
     document.getElementById("plant-notas").value = plant.notas || "";
     state.selectedCatalogId = plant.catalogId;
     state.plantOrigen = plant.origen;
@@ -228,6 +230,7 @@ function openPlantForm(plantId) {
     document.getElementById("plant-form-title").textContent = "Nueva planta";
     document.getElementById("plant-nombre-custom").value = "";
     document.getElementById("plant-variedad").value = "";
+    document.getElementById("plant-cantidad").value = 1;
     document.getElementById("plant-notas").value = "";
     state.selectedCatalogId = null;
     state.plantOrigen = "semilla";
@@ -251,6 +254,7 @@ document.getElementById("btn-save-plant").addEventListener("click", () => {
   const bedId = document.getElementById("plant-bed-select").value || null;
   const nombrePersonalizado = document.getElementById("plant-nombre-custom").value.trim() || null;
   const variedad = document.getElementById("plant-variedad").value.trim();
+  const cantidad = Math.max(1, parseInt(document.getElementById("plant-cantidad").value, 10) || 1);
   const notas = document.getElementById("plant-notas").value.trim();
 
   if (!state.selectedCatalogId && !nombrePersonalizado) {
@@ -278,12 +282,12 @@ document.getElementById("btn-save-plant").addEventListener("click", () => {
 
   if (state.editingPlantId) {
     Store.updatePlant(state.editingPlantId, {
-      catalogId: state.selectedCatalogId, nombrePersonalizado, variedad, bedId, origen: state.plantOrigen, fechas, notas
+      catalogId: state.selectedCatalogId, nombrePersonalizado, variedad, cantidad, bedId, origen: state.plantOrigen, fechas, notas
     });
     toast("Planta actualizada");
   } else {
     Store.addPlant({
-      catalogId: state.selectedCatalogId, nombrePersonalizado, variedad, bedId, origen: state.plantOrigen, fechas, notas
+      catalogId: state.selectedCatalogId, nombrePersonalizado, variedad, cantidad, bedId, origen: state.plantOrigen, fechas, notas
     });
     toast("Planta agregada");
   }
@@ -358,6 +362,9 @@ document.getElementById("plant-detail-body").addEventListener("click", (e) => {
   if (e.target.id === "btn-add-bitacora") {
     openBitacoraForm(state.currentPlantId);
   }
+  if (e.target.id === "btn-change-cantidad") {
+    openCantidadForm(state.currentPlantId);
+  }
   const photoImg = e.target.closest("[data-photo-entry-id][data-context='bitacora']");
   if (photoImg) {
     openPhotoView(photoImg.src, "bitacora", photoImg.dataset.photoEntryId, photoImg.dataset.plantId);
@@ -424,9 +431,15 @@ function openBitacoraForm(plantId) {
   document.getElementById("bitacora-photo-preview").innerHTML = "";
   document.getElementById("bitacora-fecha").value = new Date().toISOString().slice(0, 10);
   document.getElementById("bitacora-etapa").value = "";
+  document.getElementById("bitacora-gramos").value = "";
+  document.getElementById("bitacora-frutos").value = "";
+  document.getElementById("bitacora-cosecha-fields").style.display = "none";
   document.getElementById("bitacora-nota").value = "";
   openSheet("sheet-bitacora-form");
 }
+document.getElementById("bitacora-etapa").addEventListener("change", (e) => {
+  document.getElementById("bitacora-cosecha-fields").style.display = e.target.value === "cosecha" ? "block" : "none";
+});
 document.getElementById("btn-pick-bitacora-photo").addEventListener("click", () => {
   document.getElementById("bitacora-photo-input").click();
 });
@@ -447,17 +460,39 @@ document.getElementById("btn-save-bitacora").addEventListener("click", async () 
   const fecha = document.getElementById("bitacora-fecha").value || new Date().toISOString().slice(0, 10);
   const etapa = document.getElementById("bitacora-etapa").value || null;
   const nota = document.getElementById("bitacora-nota").value.trim();
-  if (!nota && !state.bitacoraPhotoBlob) { toast("Agregá una foto o una nota"); return; }
+  const gramos = etapa === "cosecha" ? parseFloat(document.getElementById("bitacora-gramos").value) || null : null;
+  const cantidadFrutos = etapa === "cosecha" ? parseInt(document.getElementById("bitacora-frutos").value, 10) || null : null;
+  if (!nota && !state.bitacoraPhotoBlob && !gramos) { toast("Agregá una foto, una nota o los gramos cosechados"); return; }
   let fotoId = null;
   if (state.bitacoraPhotoBlob) {
     fotoId = PhotoStore.newPhotoId();
     await PhotoStore.save(fotoId, state.bitacoraPhotoBlob);
   }
-  Store.addBitacoraEntry(state.currentBitacoraPlantId, { etapa, nota, fotoId, fecha });
+  Store.addBitacoraEntry(state.currentBitacoraPlantId, { etapa, nota, fotoId, fecha, gramos, cantidadFrutos });
   closeAllSheets();
   const plant = Store.getPlants().find(p => p.id === state.currentBitacoraPlantId);
   if (plant) renderBitacoraTimeline(plant);
-  toast("Agregado a la bitácora");
+  toast(gramos ? "Cosecha registrada" : "Agregado a la bitácora");
+});
+
+// ---------- Cambio de cantidad de plantas ----------
+function openCantidadForm(plantId) {
+  state.currentPlantId = plantId;
+  const plant = Store.getPlants().find(p => p.id === plantId);
+  document.getElementById("cantidad-nueva").value = plant ? (plant.cantidad || 1) : 1;
+  document.getElementById("cantidad-fecha").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("cantidad-nota").value = "";
+  openSheet("sheet-cantidad-form");
+}
+document.getElementById("btn-save-cantidad").addEventListener("click", () => {
+  const nueva = parseInt(document.getElementById("cantidad-nueva").value, 10);
+  if (isNaN(nueva) || nueva < 0) { toast("Poné una cantidad válida"); return; }
+  const fecha = document.getElementById("cantidad-fecha").value || new Date().toISOString().slice(0, 10);
+  const nota = document.getElementById("cantidad-nota").value.trim();
+  Store.updatePlantCantidad(state.currentPlantId, nueva, fecha, nota);
+  closeAllSheets();
+  renderPlantDetail(state.currentPlantId);
+  toast("Cantidad actualizada");
 });
 
 // ---------- Mover / trasplantar ----------
@@ -569,6 +604,20 @@ document.getElementById("hoy-filter-row").addEventListener("click", (e) => {
   const id = chip.dataset.filterId;
   hoyFilterValue = hoyFilterValue === id ? null : id;
   renderHoy();
+});
+
+// ---------- Cosecha (rendimiento) ----------
+document.getElementById("cosecha-periodo-control").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  cosechaPeriodo = btn.dataset.val;
+  renderCosechaView();
+});
+document.getElementById("cosecha-agrupar-control").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  cosechaAgrupar = btn.dataset.val;
+  renderCosechaView();
 });
 
 // ---------- Catálogo (recetario de plantas) ----------

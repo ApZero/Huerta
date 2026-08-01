@@ -83,9 +83,13 @@ const Store = {
 
   getPlantsByBed(bedId) { return this.getPlants().filter(p => p.bedId === bedId && p.activa !== false); },
 
-  addPlant({ catalogId, nombrePersonalizado, variedad, bedId, origen, fechas, notas }) {
+  addPlant({ catalogId, nombrePersonalizado, variedad, bedId, origen, fechas, notas, cantidad }) {
     const plants = this.getPlants();
     const now = new Date().toISOString();
+    const cantidadInicial = cantidad && cantidad > 0 ? cantidad : 1;
+    // Fechamos la cantidad inicial con la fecha de siembra/trasplante (no con "ahora"), para que
+    // los cálculos de rendimiento funcionen bien aunque se carguen cosechas de fechas pasadas.
+    const fechaCantidadInicial = (fechas && (fechas.siembra || fechas.trasplante)) || now.slice(0, 10);
     const plant = {
       id: uid(),
       catalogId: catalogId || null,
@@ -96,8 +100,10 @@ const Store = {
       fechas: fechas || {}, // {siembra, brote, primeraFlor, primerFruto, trasplante}
       notas: notas || "",
       activa: true,
+      cantidad: cantidadInicial, // cuántas plantas físicas representa este registro
+      cantidadHistorial: [{ fecha: fechaCantidadInicial, cantidad: cantidadInicial, nota: "Cantidad inicial" }],
       historial: [{ fecha: now, evento: "creada", bedId: bedId || null }],
-      bitacora: [] // registro visual: fotos + notas a lo largo del tiempo
+      bitacora: [] // registro visual: fotos + notas + cosechas a lo largo del tiempo
     };
     plants.push(plant);
     this.savePlants(plants);
@@ -113,6 +119,19 @@ const Store = {
     return plants[idx];
   },
 
+  // Registra un cambio en la cantidad de plantas físicas (ej: se sacó una planta),
+  // para que los cálculos de rendimiento por planta usen la cantidad vigente en cada fecha.
+  updatePlantCantidad(id, nuevaCantidad, fecha, nota) {
+    const plants = this.getPlants();
+    const idx = plants.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    const entry = { fecha: fecha || new Date().toISOString().slice(0, 10), cantidad: nuevaCantidad, nota: nota || "" };
+    plants[idx].cantidad = nuevaCantidad;
+    plants[idx].cantidadHistorial = [...(plants[idx].cantidadHistorial || []), entry];
+    this.savePlants(plants);
+    return plants[idx];
+  },
+
   movePlant(id, newBedId, fecha, nota) {
     const plants = this.getPlants();
     const idx = plants.findIndex(p => p.id === id);
@@ -124,11 +143,19 @@ const Store = {
     return plants[idx];
   },
 
-  addBitacoraEntry(plantId, { etapa, nota, fotoId, fecha }) {
+  addBitacoraEntry(plantId, { etapa, nota, fotoId, fecha, gramos, cantidadFrutos }) {
     const plants = this.getPlants();
     const idx = plants.findIndex(p => p.id === plantId);
     if (idx === -1) return null;
-    const entry = { id: uid(), fecha: fecha || new Date().toISOString().slice(0, 10), etapa: etapa || null, nota: nota || "", fotoId: fotoId || null };
+    const entry = {
+      id: uid(),
+      fecha: fecha || new Date().toISOString().slice(0, 10),
+      etapa: etapa || null,
+      nota: nota || "",
+      fotoId: fotoId || null,
+      gramos: (gramos != null && gramos > 0) ? gramos : null,
+      cantidadFrutos: (cantidadFrutos != null && cantidadFrutos > 0) ? cantidadFrutos : null
+    };
     plants[idx].bitacora = [...(plants[idx].bitacora || []), entry];
     this.savePlants(plants);
     return entry;

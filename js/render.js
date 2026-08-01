@@ -337,6 +337,116 @@ async function renderHoy() {
 }
 
 
+// ============ VISTA: COSECHA (rendimiento) ============
+let cosechaPeriodo = "mes"; // 'mes' | 'año' | 'todo'
+let cosechaAgrupar = "bancal"; // 'bancal' | 'especie'
+
+// Cantidad de plantas vigente en una fecha dada, según el historial de cantidad
+function getCantidadEnFecha(plant, fecha) {
+  const hist = (plant.cantidadHistorial || []).slice().sort((a, b) => a.fecha.localeCompare(b.fecha));
+  if (!hist.length) return plant.cantidad || 1;
+  const vigentes = hist.filter(h => h.fecha <= fecha);
+  if (vigentes.length) return vigentes[vigentes.length - 1].cantidad;
+  // La fecha es anterior a todo el historial: usamos el primer valor conocido como mejor estimación.
+  return hist[0].cantidad;
+}
+
+// Junta todas las entradas de bitácora que tienen gramos registrados, con datos de la planta
+function getCosechaEntries() {
+  const plants = Store.getPlants();
+  const beds = Store.getBeds();
+  const bedNameById = Object.fromEntries(beds.map(b => [b.id, b]));
+  const entries = [];
+  plants.forEach(p => {
+    (p.bitacora || []).forEach(e => {
+      if (e.gramos != null && e.gramos > 0) {
+        const bed = p.bedId ? bedNameById[p.bedId] : null;
+        entries.push({
+          ...e,
+          plantId: p.id,
+          plantName: plantDisplayName(p),
+          catalogId: p.catalogId,
+          bedId: p.bedId,
+          bedName: bed ? bed.nombre : "Sin bancal",
+          cantidadEnFecha: getCantidadEnFecha(p, e.fecha)
+        });
+      }
+    });
+  });
+  return entries;
+}
+
+function filterByPeriod(entries, periodo) {
+  if (periodo === "todo") return entries;
+  const now = new Date();
+  if (periodo === "mes") {
+    const ym = now.toISOString().slice(0, 7);
+    return entries.filter(e => e.fecha.slice(0, 7) === ym);
+  }
+  if (periodo === "año") {
+    const y = String(now.getFullYear());
+    return entries.filter(e => e.fecha.slice(0, 4) === y);
+  }
+  return entries;
+}
+
+function aggregateCosecha(entries, agrupar) {
+  const groups = new Map();
+  entries.forEach(e => {
+    const key = agrupar === "bancal" ? (e.bedId || "sin-bancal") : (e.catalogId || "sin-especie");
+    const label = agrupar === "bancal" ? e.bedName : (e.catalogId ? (getCatalogPlant(e.catalogId)?.nombre || e.catalogId) : "Sin especie / personalizada");
+    if (!groups.has(key)) groups.set(key, { label, totalGramos: 0, totalFrutos: 0, gramosPorPlantaEquivalente: 0, cantidadEntradas: 0 });
+    const g = groups.get(key);
+    g.totalGramos += e.gramos;
+    if (e.cantidadFrutos) g.totalFrutos += e.cantidadFrutos;
+    // Cada cosecha aporta "gramos / cantidad de plantas en esa fecha" al promedio por planta,
+    // así se ajusta solo si la cantidad de plantas cambió durante el período.
+    g.gramosPorPlantaEquivalente += e.gramos / (e.cantidadEnFecha || 1);
+    g.cantidadEntradas++;
+  });
+  return Array.from(groups.values()).sort((a, b) => b.totalGramos - a.totalGramos);
+}
+
+function renderCosechaView() {
+  document.querySelectorAll("#cosecha-periodo-control button").forEach(b => b.classList.toggle("active", b.dataset.val === cosechaPeriodo));
+  document.querySelectorAll("#cosecha-agrupar-control button").forEach(b => b.classList.toggle("active", b.dataset.val === cosechaAgrupar));
+
+  const all = getCosechaEntries();
+  const filtradas = filterByPeriod(all, cosechaPeriodo);
+
+  const totalGramos = filtradas.reduce((sum, e) => sum + e.gramos, 0);
+  const totalFrutos = filtradas.reduce((sum, e) => sum + (e.cantidadFrutos || 0), 0);
+  const pesoPromedioFruto = totalFrutos > 0 ? totalGramos / totalFrutos : null;
+
+  document.getElementById("cosecha-resumen").innerHTML = `
+    <div class="stats-pills">
+      <span class="stat-pill">🧺 ${totalGramos >= 1000 ? (totalGramos / 1000).toFixed(1) + " kg" : Math.round(totalGramos) + " g"}</span>
+      ${totalFrutos > 0 ? `<span class="stat-pill">🍅 ${totalFrutos} frutos</span>` : ""}
+      ${pesoPromedioFruto ? `<span class="stat-pill">⚖️ ${Math.round(pesoPromedioFruto)} g/fruto prom.</span>` : ""}
+    </div>
+  `;
+
+  const grupos = aggregateCosecha(filtradas, cosechaAgrupar);
+  const container = document.getElementById("cosecha-detalle");
+  if (!grupos.length) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">🧺</div><h3>Sin cosechas registradas</h3><p>Registrá una cosecha desde la bitácora de cada planta (etapa "Cosecha", con los gramos).</p></div>`;
+    return;
+  }
+  container.innerHTML = grupos.map(g => `
+    <div class="card" style="padding:14px;">
+      <div class="card-row">
+        <h3 style="font-size:0.94rem;">${escapeHTML(g.label)}</h3>
+        <span style="font-weight:700; color:var(--terracota-dark);">${g.totalGramos >= 1000 ? (g.totalGramos / 1000).toFixed(1) + " kg" : Math.round(g.totalGramos) + " g"}</span>
+      </div>
+      <div style="font-size:0.8rem; color:var(--tierra-soft); margin-top:6px;">
+        ${Math.round(g.gramosPorPlantaEquivalente)} g promedio por planta
+        ${g.totalFrutos > 0 ? ` · ${g.totalFrutos} frutos (~${Math.round(g.totalGramos / g.totalFrutos)} g/fruto)` : ""}
+        · ${g.cantidadEntradas} cosecha${g.cantidadEntradas === 1 ? "" : "s"} registrada${g.cantidadEntradas === 1 ? "" : "s"}
+      </div>
+    </div>
+  `).join("");
+}
+
 // ============ VISTA: CATÁLOGO (recetario de plantas) ============
 let catalogoActiveSubtab = "plantas";
 let catalogoFilterCategory = "todas";
@@ -661,6 +771,13 @@ function renderPlantDetail(plantId) {
       ${stageTrackHTML(plant)}
       ${plant.notas ? `<div style="font-size:0.84rem; margin-top:10px; padding-top:10px; border-top:1px solid var(--line);">${escapeHTML(plant.notas)}</div>` : ""}
     </div>
+    <div class="card" style="padding:12px 14px;">
+      <div class="card-row">
+        <div><div style="font-size:0.78rem; color:var(--tierra-soft); font-weight:600; text-transform:uppercase; letter-spacing:0.03em;">Cantidad de plantas</div>
+        <div style="font-size:1.1rem; font-weight:700; color:var(--terracota-dark);">${plant.cantidad || 1}</div></div>
+        <button class="btn btn-ghost" id="btn-change-cantidad" style="font-size:0.78rem;">Registrar cambio</button>
+      </div>
+    </div>
     <div style="display:flex; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
       ${plant.activa === false ? `
         <button class="btn btn-secondary" style="flex:1;" id="btn-reactivate-plant">Reactivar</button>
@@ -671,12 +788,12 @@ function renderPlantDetail(plantId) {
       `}
     </div>
     ${recsHTML}
-    <div class="section-title">Bitácora visual</div>
+    <div class="section-title">Bitácora visual y cosechas</div>
     <div class="card">
       <div id="plant-bitacora-timeline">
         <div style="font-size:0.82rem; color:var(--tierra-soft);">Cargando...</div>
       </div>
-      <button class="btn btn-secondary btn-block" id="btn-add-bitacora" style="margin-top:8px;">📷 Agregar foto / nota</button>
+      <button class="btn btn-secondary btn-block" id="btn-add-bitacora" style="margin-top:8px;">📷 Agregar foto / nota / cosecha</button>
     </div>
     <div class="section-title">Historial</div>
     <div class="card">${historialHTML || '<div style="font-size:0.82rem; color:var(--tierra-soft);">Sin movimientos registrados.</div>'}</div>
@@ -694,19 +811,24 @@ async function renderBitacoraTimeline(plant) {
   if (!container) return;
   const entries = (plant.bitacora || []).slice().sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
   if (!entries.length) {
-    container.innerHTML = `<div style="font-size:0.82rem; color:var(--tierra-soft);">Sin entradas todavía. Agregá una foto o nota para ir armando la historia de esta planta.</div>`;
+    container.innerHTML = `<div style="font-size:0.82rem; color:var(--tierra-soft);">Sin entradas todavía. Agregá una foto, nota o cosecha para ir armando la historia de esta planta.</div>`;
     return;
   }
   const urls = await Promise.all(entries.map(e => e.fotoId ? PhotoStore.getPhotoURL(e.fotoId).catch(() => null) : Promise.resolve(null)));
-  container.innerHTML = entries.map((e, i) => `
+  container.innerHTML = entries.map((e, i) => {
+    const cosechaInfo = e.gramos
+      ? `<div class="timeline-nota" style="color:var(--terracota-dark); font-weight:600;">🧺 ${e.gramos >= 1000 ? (e.gramos / 1000).toFixed(1) + " kg" : e.gramos + " g"}${e.cantidadFrutos ? ` · ${e.cantidadFrutos} fruto${e.cantidadFrutos === 1 ? "" : "s"} (~${Math.round(e.gramos / e.cantidadFrutos)} g/fruto)` : ""}</div>`
+      : "";
+    return `
     <div class="timeline-item">
       ${urls[i]
         ? `<img class="timeline-photo" src="${urls[i]}" data-photo-entry-id="${e.id}" data-context="bitacora" data-plant-id="${plant.id}">`
-        : `<div class="timeline-photo-placeholder">📝</div>`}
+        : `<div class="timeline-photo-placeholder">${e.gramos ? "🧺" : "📝"}</div>`}
       <div style="flex:1;">
         <div class="timeline-meta">${fmtDate(e.fecha)} · ${bitacoraStageLabel(e.etapa)}</div>
+        ${cosechaInfo}
         ${e.nota ? `<div class="timeline-nota">${escapeHTML(e.nota)}</div>` : ""}
       </div>
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
 }
